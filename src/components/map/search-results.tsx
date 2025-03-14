@@ -3,13 +3,23 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Star, MapPin, Filter } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface SearchResultsProps {
   businesses: any[];
   onSelect: (business: any) => void;
+  userLocation?: [number, number] | null;
+  isLoading?: boolean;
+  error?: string | null;
 }
 
-export function SearchResults({ businesses, onSelect }: SearchResultsProps) {
+export function SearchResults({ 
+  businesses, 
+  onSelect, 
+  userLocation,
+  isLoading = false,
+  error = null
+}: SearchResultsProps) {
   // Render stars for ratings
   const renderStars = (rating: number) => {
     return Array(5).fill(0).map((_, i) => (
@@ -20,6 +30,17 @@ export function SearchResults({ businesses, onSelect }: SearchResultsProps) {
     ));
   };
 
+  // Format distance
+  const formatDistance = (distance: number) => {
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)} m away`;
+    } else if (distance < 10) {
+      return `${distance.toFixed(1)} km away`;
+    } else {
+      return `${Math.round(distance)} km away`;
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -28,7 +49,10 @@ export function SearchResults({ businesses, onSelect }: SearchResultsProps) {
       
       <div className="flex justify-between items-center mb-3">
         <div className="text-sm text-muted-foreground">
-          {businesses.length} businesses found
+          {!isLoading && businesses.length > 0 && (
+            <>{businesses.length} businesses found
+            {userLocation && ' near you'}</>
+          )}
         </div>
         <Button variant="ghost" size="sm" className="gap-1">
           <Filter className="h-4 w-4" />
@@ -36,42 +60,86 @@ export function SearchResults({ businesses, onSelect }: SearchResultsProps) {
         </Button>
       </div>
       
-      {businesses.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-muted-foreground">No businesses found matching your search criteria.</p>
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+          <p className="text-muted-foreground">Loading results...</p>
+        </div>
+      ) : error ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-2">{error}</p>
+          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+            Try Again
+          </Button>
+        </div>
+      ) : businesses.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground mb-2">No businesses found</p>
+          <p className="text-sm text-muted-foreground">Try a different search term or location</p>
         </div>
       ) : (
         <div className="space-y-3">
           {businesses.map((business) => (
             <Card 
               key={business.id} 
-              className="p-3 cursor-pointer hover:border-primary transition-colors"
+              className="p-3 hover:bg-accent transition-colors cursor-pointer"
               onClick={() => onSelect(business)}
             >
-              <h3 className="font-medium">{business.name}</h3>
-              <div className="flex items-center gap-1 my-1">
-                {renderStars(business.rating)}
-                <span className="text-xs text-muted-foreground ml-1">
-                  ({business.reviewCount})
-                </span>
-              </div>
-              <div className="text-xs text-muted-foreground mb-1">{business.category}</div>
-              <div className="flex items-center text-xs text-muted-foreground">
-                <MapPin className="h-3 w-3 mr-1" />
-                {business.address}
-              </div>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {business.attributes.slice(0, 2).map((attribute: string, index: number) => (
-                  <span 
-                    key={index} 
-                    className="inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px]"
-                  >
-                    {attribute}
-                  </span>
-                ))}
-                {business.attributes.length > 2 && (
-                  <span className="text-[10px] text-muted-foreground">+{business.attributes.length - 2} more</span>
+              <div className="flex gap-3">
+                {business.photos && business.photos.length > 0 ? (
+                  <div className="w-16 h-16 rounded bg-secondary flex-shrink-0 overflow-hidden">
+                    <img 
+                      src={business.photos[0]} 
+                      alt={business.name} 
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "https://via.placeholder.com/64?text=No+Image";
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 rounded bg-secondary flex-shrink-0 flex items-center justify-center text-xs text-muted-foreground">
+                    No Image
+                  </div>
                 )}
+                
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-sm mb-1 truncate">{business.name}</h3>
+                  
+                  {business.rating && (
+                    <div className="flex items-center gap-1 mb-1">
+                      <div className="flex">{renderStars(business.rating)}</div>
+                      <span className="text-xs text-muted-foreground">
+                        {business.rating} {business.reviewCount && `(${business.reviewCount})`}
+                      </span>
+                    </div>
+                  )}
+                  
+                  <div className="text-xs text-muted-foreground mb-1">{business.category}</div>
+                  
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <MapPin className="h-3 w-3" />
+                    <span className="truncate">{business.address}</span>
+                    {business.distance !== undefined && (
+                      <span className="whitespace-nowrap"> • {formatDistance(business.distance)}</span>
+                    )}
+                  </div>
+                  
+                  {business.attributes && business.attributes.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {business.attributes.slice(0, 2).map((attr, i) => (
+                        <span key={i} className="px-1.5 py-0.5 bg-secondary text-xs rounded">
+                          {attr}
+                        </span>
+                      ))}
+                      {business.attributes.length > 2 && (
+                        <span className="px-1.5 py-0.5 bg-secondary text-xs rounded">
+                          +{business.attributes.length - 2}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </Card>
           ))}

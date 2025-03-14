@@ -1,0 +1,23 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NEXT_TELEMETRY_DISABLED = "1"
+
+# Use the Next.js plugin for handling SSR and API routes
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Handle Next.js routing
+[[redirects]]
+  from = "/*"
+  to = "/_ipx"
+  status = 200
+  force = true
+  conditions = {Path = "/_next/image"}
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200 

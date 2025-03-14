@@ -24,6 +24,17 @@ export function BusinessDetails({ business, onBack, onWriteReview }: BusinessDet
     ));
   };
 
+  // Format distance
+  const formatDistance = (distance: number) => {
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)} m away`;
+    } else if (distance < 10) {
+      return `${distance.toFixed(1)} km away`;
+    } else {
+      return `${Math.round(distance)} km away`;
+    }
+  };
+
   // Handle authenticated actions
   const handleAuthAction = (action: () => void) => {
     if (authenticated) {
@@ -70,6 +81,11 @@ export function BusinessDetails({ business, onBack, onWriteReview }: BusinessDet
           <div className="flex items-center text-muted-foreground">
             <MapPin className="h-4 w-4 mr-2" />
             {business.address}
+            {business.distance !== undefined && (
+              <span className="ml-2 text-primary font-medium">
+                {formatDistance(business.distance)}
+              </span>
+            )}
           </div>
           
           {business.phone && (
