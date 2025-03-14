@@ -1,0 +1,137 @@
+// This is your Prisma schema file for Ethnica application
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and basic info
+model User {
+  id                String             @id @default(cuid())
+  email             String             @unique
+  password          String
+  name              String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  profile           UserProfile?
+  reviews           Review[]
+  favoriteBusinesses Business[]        @relation("UserFavorites")
+}
+
+// Separate profile model for demographic information
+model UserProfile {
+  id                String             @id @default(cuid())
+  userId            String             @unique
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age               Int?
+  // Store ethnicity/race
+  ethnicity         String?
+  // Dietary preferences and restrictions
+  isVegetarian      Boolean            @default(false)
+  isVegan           Boolean            @default(false)
+  isKosher          Boolean            @default(false)
+  isHalal           Boolean            @default(false)
+  // Additional dietary restrictions as a list
+  dietaryRestrictions String[]         @default([])
+  // Allergies
+  allergies         String[]           @default([])
+  // Privacy setting - how much to share
+  privacyLevel      PrivacyLevel       @default(PARTIAL)
+  // Location information for mapping
+  latitude          Float?
+  longitude         Float?
+  city              String?
+  state             String?
+  zip               String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+// Privacy level enum to control how much demographic info is shared
+enum PrivacyLevel {
+  PRIVATE           // Share minimal info
+  PARTIAL           // Share some demographic info
+  PUBLIC            // Share all demographic info
+}
+
+// Business model for establishments
+model Business {
+  id                String             @id @default(cuid())
+  name              String
+  description       String?
+  // Business type/category
+  category          String?
+  // Contact info
+  phone             String?
+  email             String?
+  website           String?
+  // Address and location
+  address           String?
+  city              String?
+  state             String?
+  zip               String?
+  latitude          Float?
+  longitude         Float?
+  // Business hours as JSON
+  hours             Json?
+  // Business values and attributes
+  minorityOwned     Boolean            @default(false)
+  womanOwned        Boolean            @default(false)
+  locallyOwned      Boolean            @default(false)
+  sustainablePractices Boolean         @default(false)
+  veganOptions      Boolean            @default(false)
+  vegetarianOptions Boolean            @default(false)
+  kosherOptions     Boolean            @default(false)
+  halalOptions      Boolean            @default(false)
+  // Relationships
+  reviews           Review[]
+  images            BusinessImage[]
+  favoredBy         User[]             @relation("UserFavorites")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+}
+
+// Images for businesses
+model BusinessImage {
+  id                String             @id @default(cuid())
+  businessId        String
+  business          Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  url               String
+  altText           String?
+  createdAt         DateTime           @default(now())
+}
+
+// Review model
+model Review {
+  id                String             @id @default(cuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessId        String
+  business          Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  rating            Int                // 1-5 rating
+  content           String             // Review text
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  helpfulCount      Int                @default(0)
+  // Allow upvotes on reviews
+  helpfulVotes      HelpfulVote[]
+}
+
+// Track helpful votes on reviews
+model HelpfulVote {
+  id                String             @id @default(cuid())
+  reviewId          String
+  review            Review             @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+  userId            String
+  createdAt         DateTime           @default(now())
+
+  @@unique([reviewId, userId])
+}

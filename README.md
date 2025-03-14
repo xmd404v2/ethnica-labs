@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Ethnica - Support Your Tribe & Grow Local Economies
+
+Ethnica is a web application that helps users discover and support businesses that align with their values and demographics. The platform allows users to find businesses on a map, read reviews from people with similar backgrounds, and search for establishments based on their preferences.
+
+## Features
+
+- **Interactive Map**: Discover businesses near you using Mapbox integration
+- **Demographic Matching**: See reviews from people with similar backgrounds and preferences first
+- **Value-Based Search**: Find businesses that match your values and priorities
+- **User Profiles**: Create a semi-anonymous profile with demographic information
+- **Reviews System**: Leave and read authentic reviews from the community
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, React, TypeScript, Tailwind CSS
+- **UI Components**: shadcn/ui (built on Radix UI)
+- **Database**: PostgreSQL with Prisma ORM
+- **Maps**: Mapbox GL
+- **Authentication**: NextAuth.js
+- **Form Handling**: React Hook Form with Zod validation
+- **Styling**: Tailwind CSS with dark mode support
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- Node.js 18+ and npm
+- PostgreSQL database
+- Mapbox API key
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Installation
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/ethnica.git
+   cd ethnica
+   ```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-## Learn More
+3. Set up environment variables:
+   - Copy `.env.example` to `.env`
+   - Update the database connection string and Mapbox API key
 
-To learn more about Next.js, take a look at the following resources:
+4. Set up the database:
+   ```bash
+   npx prisma migrate dev
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+5. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `/app` - Next.js app router pages and layouts
+- `/components` - Reusable React components
+- `/lib` - Utility functions and shared code
+- `/prisma` - Database schema and migrations
+- `/public` - Static assets
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Contact
+
+For questions or feedback, please contact the team at team@ethni.ca.
