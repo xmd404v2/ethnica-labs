@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Star, MapPin, ChevronLeft, Phone, Globe } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { usePrivy } from '@privy-io/react-auth';
 
 interface BusinessDetailsProps {
   business: any;
@@ -11,6 +12,8 @@ interface BusinessDetailsProps {
 }
 
 export function BusinessDetails({ business, onBack, onWriteReview }: BusinessDetailsProps) {
+  const { login, authenticated } = usePrivy();
+  
   // Render stars for ratings
   const renderStars = (rating: number) => {
     return Array(5).fill(0).map((_, i) => (
@@ -19,6 +22,15 @@ export function BusinessDetails({ business, onBack, onWriteReview }: BusinessDet
         className={`h-4 w-4 ${i < rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`} 
       />
     ));
+  };
+
+  // Handle authenticated actions
+  const handleAuthAction = (action: () => void) => {
+    if (authenticated) {
+      action();
+    } else {
+      login();
+    }
   };
 
   return (
@@ -91,8 +103,19 @@ export function BusinessDetails({ business, onBack, onWriteReview }: BusinessDet
         </div>
         
         <div className="pt-4 flex gap-2">
-          <Button className="flex-1" onClick={onWriteReview}>Write a review</Button>
-          <Button variant="outline" className="flex-1">Save</Button>
+          <Button 
+            className="flex-1" 
+            onClick={() => handleAuthAction(onWriteReview)}
+          >
+            Write a review
+          </Button>
+          <Button 
+            variant="outline" 
+            className="flex-1"
+            onClick={() => handleAuthAction(() => console.log('Saving business'))}
+          >
+            Save
+          </Button>
           <Button variant="outline" size="icon">
             <Phone className="h-4 w-4" />
           </Button>

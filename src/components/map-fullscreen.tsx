@@ -12,6 +12,8 @@ import { BusinessDetails } from "@/components/map/business-details";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ChevronLeft } from "lucide-react";
+import { AuthButton } from "@/components/auth/auth-button";
+import { usePrivy } from '@privy-io/react-auth';
 
 // Check if Mapbox token is available
 const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
@@ -107,6 +109,8 @@ export function MapFullscreen() {
   const [lng] = useState(-74.006);
   const [lat] = useState(40.7128);
   const [zoom] = useState(13);
+
+  const { user, authenticated } = usePrivy();
 
   // Handle search
   const handleSearch = (query: string) => {
@@ -344,9 +348,75 @@ export function MapFullscreen() {
     }
   }, [businesses]);
 
+  // Render the review form section
+  const renderReviewForm = () => {
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowReviewForm(false)}
+            className="flex items-center gap-1"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Back to business
+          </Button>
+        </div>
+        
+        <div>
+          <h2 className="text-lg font-medium mb-4">Write a Review for {selectedBusiness.name}</h2>
+          <form className="space-y-4" onSubmit={(e) => {
+            e.preventDefault();
+            // Handle form submission
+            console.log('Review submitted');
+            setShowReviewForm(false);
+          }}>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Rating</label>
+              <div className="flex gap-1">
+                {Array(5).fill(0).map((_, i) => (
+                  <button 
+                    key={i} 
+                    type="button"
+                    className="text-2xl text-muted-foreground hover:text-yellow-500"
+                  >
+                    ★
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Your Review</label>
+              <textarea 
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background" 
+                rows={5}
+                placeholder="Share your experience with this business..."
+                required
+              />
+            </div>
+            
+            {/* Show user info from Privy */}
+            {authenticated && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Posting as: {user?.displayName || user?.email?.address}</span>
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowReviewForm(false)}>Cancel</Button>
+              <Button type="submit">Submit Review</Button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="flex h-screen w-full flex-col relative bg-background">
-      {/* Top navigation bar */}
+      {/* Top navigation bar - Updated with higher z-index */}
       <div className="absolute top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm p-2 border-b flex items-center">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={toggleSidebar} className="mr-1">
@@ -370,6 +440,7 @@ export function MapFullscreen() {
             <Layers className="h-5 w-5" />
             <span className="sr-only">Map layers</span>
           </Button>
+          <AuthButton />
         </div>
       </div>
       
@@ -384,53 +455,7 @@ export function MapFullscreen() {
           <div className="p-4">
             {selectedBusiness ? (
               showReviewForm ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => setShowReviewForm(false)}
-                      className="flex items-center gap-1"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                      Back to business
-                    </Button>
-                  </div>
-                  
-                  <div>
-                    <h2 className="text-lg font-medium mb-4">Write a Review for {selectedBusiness.name}</h2>
-                    <form className="space-y-4">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Rating</label>
-                        <div className="flex gap-1">
-                          {Array(5).fill(0).map((_, i) => (
-                            <button 
-                              key={i} 
-                              type="button"
-                              className="text-2xl text-muted-foreground hover:text-yellow-500"
-                            >
-                              ★
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium">Your Review</label>
-                        <textarea 
-                          className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background" 
-                          rows={5}
-                          placeholder="Share your experience with this business..."
-                        />
-                      </div>
-                      
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" onClick={() => setShowReviewForm(false)}>Cancel</Button>
-                        <Button>Submit Review</Button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
+                renderReviewForm()
               ) : (
                 <BusinessDetails 
                   business={selectedBusiness} 
