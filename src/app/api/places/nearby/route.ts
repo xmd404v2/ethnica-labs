@@ -51,19 +51,26 @@ export async function GET(request: NextRequest) {
     });
     
     if (!response.ok) {
-      throw new Error(`Google Places API responded with status: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`Google Places API error: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`Google Places API responded with status: ${response.status} - ${errorText}`);
     }
     
     const data = await response.json();
     console.log("Google API response status:", data.status);
     console.log("Number of results:", data.results?.length || 0);
     
+    if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
+      console.error(`Google Places API error status: ${data.status}`, data.error_message);
+      throw new Error(`Google Places API error: ${data.status} - ${data.error_message || "Unknown error"}`);
+    }
+    
     // Return the response
     return NextResponse.json(data);
   } catch (error) {
     console.error("Error fetching nearby places:", error);
     return NextResponse.json(
-      { error: "Failed to fetch nearby places" },
+      { error: error.message || "Failed to fetch nearby places" },
       { status: 500 }
     );
   }

@@ -42,7 +42,7 @@ export function SearchResults({
   };
 
   return (
-    <div>
+    <div className="w-full overflow-hidden">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium">Search Results</h2>
       </div>
@@ -78,7 +78,7 @@ export function SearchResults({
           <p className="text-sm text-muted-foreground">Try a different search term or location</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-y-auto">
           {businesses.map((business) => (
             <Card 
               key={business.id} 
@@ -103,32 +103,32 @@ export function SearchResults({
                   </div>
                 )}
                 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 overflow-hidden">
                   <h3 className="font-medium text-sm mb-1 truncate">{business.name}</h3>
                   
                   {business.rating && (
                     <div className="flex items-center gap-1 mb-1">
                       <div className="flex">{renderStars(business.rating)}</div>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
                         {business.rating} {business.reviewCount && `(${business.reviewCount})`}
                       </span>
                     </div>
                   )}
                   
-                  <div className="text-xs text-muted-foreground mb-1">{business.category}</div>
+                  <div className="text-xs text-muted-foreground mb-1 truncate">{business.category}</div>
                   
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="h-3 w-3" />
+                    <MapPin className="h-3 w-3 flex-shrink-0" />
                     <span className="truncate">{business.address}</span>
                     {business.distance !== undefined && (
-                      <span className="whitespace-nowrap"> • {formatDistance(business.distance)}</span>
+                      <span className="whitespace-nowrap flex-shrink-0"> • {formatDistance(business.distance)}</span>
                     )}
                   </div>
                   
                   {business.attributes && business.attributes.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {business.attributes.slice(0, 2).map((attr, i) => (
-                        <span key={i} className="px-1.5 py-0.5 bg-secondary text-xs rounded">
+                        <span key={i} className="px-1.5 py-0.5 bg-secondary text-xs rounded truncate max-w-[100px]">
                           {attr}
                         </span>
                       ))}

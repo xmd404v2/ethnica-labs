@@ -1,24 +1,19 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import mapboxgl from "mapbox-gl";
-import "mapbox-gl/dist/mapbox-gl.css";
-import { Menu, X, Layers, Compass, UserLocation } from "lucide-react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { Menu, X, Layers, Compass } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { MapSearch } from "@/components/search/map-search";
 import { SearchResults } from "@/components/map/search-results";
 import { BusinessDetails } from "@/components/map/business-details";
-import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ChevronLeft } from "lucide-react";
 import { AuthButton } from "@/components/auth/auth-button";
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from "sonner";
 import { searchNearbyBusinesses, getBusinessDetails, Business } from "@/lib/api/places";
-
-// Check if Mapbox token is available
-const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
 
 // Storage keys
 const LOCATION_STORAGE_KEY = 'ethnica-user-location';
@@ -26,41 +21,111 @@ const LOCATION_TIMESTAMP_KEY = 'ethnica-location-timestamp';
 // Expiration time for cached location (24 hours in milliseconds)
 const LOCATION_CACHE_EXPIRY = 24 * 60 * 60 * 1000;
 
-// Calculate distance between two coordinates in kilometers using Haversine formula
-function getDistanceBetweenCoordinates(lat1, lon1, lat2, lon2) {
-  const R = 6371; // Radius of the Earth in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-  return R * c; // Distance in km
-}
+// Google Maps container style
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%'
+};
+
+// Map options
+const mapOptions = {
+  disableDefaultUI: true,
+  zoomControl: true,
+  styles: [
+    {
+      "featureType": "all",
+      "elementType": "labels.text.fill",
+      "stylers": [{"color": "#ffffff"}]
+    },
+    {
+      "featureType": "all",
+      "elementType": "labels.text.stroke",
+      "stylers": [{"color": "#000000"}, {"lightness": 13}]
+    },
+    {
+      "featureType": "administrative",
+      "elementType": "geometry.fill",
+      "stylers": [{"color": "#000000"}]
+    },
+    {
+      "featureType": "administrative",
+      "elementType": "geometry.stroke",
+      "stylers": [{"color": "#144b53"}, {"lightness": 14}, {"weight": 1.4}]
+    },
+    {
+      "featureType": "landscape",
+      "elementType": "all",
+      "stylers": [{"color": "#08304b"}]
+    },
+    {
+      "featureType": "poi",
+      "elementType": "geometry",
+      "stylers": [{"color": "#0c4152"}, {"lightness": 5}]
+    },
+    {
+      "featureType": "road.highway",
+      "elementType": "geometry.fill",
+      "stylers": [{"color": "#000000"}]
+    },
+    {
+      "featureType": "road.highway",
+      "elementType": "geometry.stroke",
+      "stylers": [{"color": "#0b434f"}, {"lightness": 25}]
+    },
+    {
+      "featureType": "road.arterial",
+      "elementType": "geometry.fill",
+      "stylers": [{"color": "#000000"}]
+    },
+    {
+      "featureType": "road.arterial",
+      "elementType": "geometry.stroke",
+      "stylers": [{"color": "#0b3d51"}, {"lightness": 16}]
+    },
+    {
+      "featureType": "road.local",
+      "elementType": "geometry",
+      "stylers": [{"color": "#000000"}]
+    },
+    {
+      "featureType": "transit",
+      "elementType": "all",
+      "stylers": [{"color": "#146474"}]
+    },
+    {
+      "featureType": "water",
+      "elementType": "all",
+      "stylers": [{"color": "#021019"}]
+    }
+  ]
+};
 
 export function MapFullscreen() {
-  const mapContainer = useRef<HTMLDivElement>(null);
-  const map = useRef<mapboxgl.Map | null>(null);
-  const userMarker = useRef<mapboxgl.Marker | null>(null);
+  // Load the Google Maps JavaScript API
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
+    libraries: ['places']
+  });
+
+  const [map, setMap] = useState(null);
+  const [infoWindow, setInfoWindow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
-  const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
-  const [activeMarker, setActiveMarker] = useState<mapboxgl.Marker | null>(null);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [isLocatingUser, setIsLocatingUser] = useState(false);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [activeMarker, setActiveMarker] = useState<string | null>(null);
 
   // User location state
-  const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
   const [locationAccessDenied, setLocationAccessDenied] = useState(false);
 
   // Default map settings - will be overridden by user location if available
-  const [lng, setLng] = useState(-74.006);
-  const [lat, setLat] = useState(40.7128);
+  const [center, setCenter] = useState({ lat: 40.7128, lng: -74.006 });
   const [zoom, setZoom] = useState(13);
 
   const { user, authenticated } = usePrivy();
@@ -80,12 +145,12 @@ export function MapFullscreen() {
           
           // Check if the cached location is still valid (less than 24 hours old)
           if (now - timestamp < LOCATION_CACHE_EXPIRY) {
-            setUserLocation(location);
-            setLng(location[0]);
-            setLat(location[1]);
+            const formattedLocation = { lng: location[0], lat: location[1] };
+            setUserLocation(formattedLocation);
+            setCenter(formattedLocation);
             
             // Filter businesses based on location
-            filterBusinessesByLocation(location[0], location[1]);
+            filterBusinessesByLocation(formattedLocation.lng, formattedLocation.lat);
           } else {
             // Cached location expired, request fresh location
             requestLocationAccess();
@@ -113,31 +178,21 @@ export function MapFullscreen() {
     
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const newLocation: [number, number] = [position.coords.longitude, position.coords.latitude];
+        const newLocation = {
+          lng: position.coords.longitude,
+          lat: position.coords.latitude
+        };
         
         // Save the user's location in state
         setUserLocation(newLocation);
-        setLng(newLocation[0]);
-        setLat(newLocation[1]);
+        setCenter(newLocation);
         
         // Save to localStorage with timestamp
-        localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(newLocation));
+        localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify([newLocation.lng, newLocation.lat]));
         localStorage.setItem(LOCATION_TIMESTAMP_KEY, Date.now().toString());
         
         // Filter businesses based on new location
-        filterBusinessesByLocation(newLocation[0], newLocation[1]);
-        
-        // Pan to the user's location if map is available
-        if (map.current) {
-          map.current.flyTo({
-            center: newLocation,
-            zoom: 14,
-            essential: true
-          });
-          
-          // Add or update user location marker
-          addUserLocationMarker(newLocation);
-        }
+        filterBusinessesByLocation(newLocation.lng, newLocation.lat);
         
         setIsLocatingUser(false);
         toast.success("Location accessed successfully!");
@@ -159,64 +214,6 @@ export function MapFullscreen() {
         maximumAge: 60000
       }
     );
-  };
-
-  // Add user location marker to the map
-  const addUserLocationMarker = (location: [number, number]) => {
-    if (map.current) {
-      // Remove existing marker if it exists
-      if (userMarker.current) {
-        userMarker.current.remove();
-      }
-      
-      // Create a custom element for the user marker
-      const el = document.createElement('div');
-      el.className = 'user-location-marker';
-      el.style.width = '20px';
-      el.style.height = '20px';
-      el.style.borderRadius = '50%';
-      el.style.background = '#4F46E5';
-      el.style.border = '3px solid white';
-      el.style.boxShadow = '0 0 0 2px rgba(0, 0, 0, 0.2)';
-      el.style.cursor = 'pointer';
-      
-      // Create a pulse effect element
-      const pulse = document.createElement('div');
-      pulse.className = 'user-location-pulse';
-      pulse.style.position = 'absolute';
-      pulse.style.top = '-10px';
-      pulse.style.left = '-10px';
-      pulse.style.width = '40px';
-      pulse.style.height = '40px';
-      pulse.style.borderRadius = '50%';
-      pulse.style.backgroundColor = 'rgba(79, 70, 229, 0.2)';
-      pulse.style.animation = 'pulse 2s infinite';
-      el.appendChild(pulse);
-      
-      // Create and add the keyframes for the pulse animation if not already present
-      if (!document.getElementById('user-location-pulse-style')) {
-        const style = document.createElement('style');
-        style.id = 'user-location-pulse-style';
-        style.innerHTML = `
-          @keyframes pulse {
-            0% { transform: scale(0.5); opacity: 1; }
-            100% { transform: scale(1.5); opacity: 0; }
-          }
-        `;
-        document.head.appendChild(style);
-      }
-      
-      // Create and add the marker
-      userMarker.current = new mapboxgl.Marker(el)
-        .setLngLat(location)
-        .addTo(map.current);
-      
-      // Add a popup to the marker
-      new mapboxgl.Popup({ closeButton: false, offset: 25 })
-        .setLngLat(location)
-        .setHTML('<strong>Your Location</strong>')
-        .addTo(map.current);
-    }
   };
 
   // Filter businesses based on user's location
@@ -252,15 +249,15 @@ export function MapFullscreen() {
     
     try {
       const results = await searchNearbyBusinesses(
-        userLocation,
+        [userLocation.lng, userLocation.lat],
         query.trim() !== "" ? query : undefined
       );
       
       setBusinesses(results);
-      
-      // Open sidebar with results
-      setSidebarOpen(true);
-      setSelectedBusiness(null);
+    
+    // Open sidebar with results
+    setSidebarOpen(true);
+    setSelectedBusiness(null);
       setShowReviewForm(false);
     } catch (error) {
       console.error("Search error:", error);
@@ -289,34 +286,22 @@ export function MapFullscreen() {
           setSelectedBusiness(business);
         }
       } else {
-        setSelectedBusiness(business);
+    setSelectedBusiness(business);
       }
       
       setShowReviewForm(false);
       
-      // Fly to the business location
-      if (map.current) {
-        map.current.flyTo({
-          center: business.coordinates,
-          zoom: 16,
-          essential: true
+      // Center the map on the selected business
+      if (business.coordinates) {
+        setCenter({ 
+          lat: business.coordinates[1], 
+          lng: business.coordinates[0] 
         });
-        
-        // Highlight the marker
-        markers.forEach(marker => {
-          const el = marker.getElement();
-          el.classList.remove('marker-active');
-          
-          // Find the marker for this business
-          if (marker._lngLat && 
-              marker._lngLat.lng === business.coordinates[0] && 
-              marker._lngLat.lat === business.coordinates[1]) {
-            el.classList.add('marker-active');
-            setActiveMarker(marker);
-            marker.togglePopup();
-          }
-        });
+        setZoom(16);
       }
+      
+      // Set the active marker
+      setActiveMarker(business.id);
     } catch (error) {
       console.error("Error getting business details:", error);
       toast.error("Failed to load business details");
@@ -330,23 +315,12 @@ export function MapFullscreen() {
   const handleBackToResults = () => {
     setSelectedBusiness(null);
     setShowReviewForm(false);
-    
-    // Reset the active marker
-    if (activeMarker) {
-      const el = activeMarker.getElement();
-      el.classList.remove('marker-active');
-      if (activeMarker.getPopup().isOpen()) {
-        activeMarker.togglePopup();
-      }
-    }
+    setActiveMarker(null);
     
     // If user location is available, center there, otherwise use default
-    if (map.current) {
-      map.current.flyTo({
-        center: userLocation || [lng, lat],
-        zoom: userLocation ? 14 : zoom,
-        essential: true
-      });
+    if (userLocation) {
+      setCenter(userLocation);
+      setZoom(14);
     }
   };
 
@@ -360,177 +334,21 @@ export function MapFullscreen() {
     setSidebarOpen(!sidebarOpen);
   };
 
-  // Initialize map
-  useEffect(() => {
-    if (map.current || !mapContainer.current || !mapboxToken) return;
-
-    map.current = new mapboxgl.Map({
-      container: mapContainer.current,
-      style: "mapbox://styles/mapbox/dark-v11", // Dark style to match our dark theme
-      center: [lng, lat],
-      zoom: zoom,
-      accessToken: mapboxToken,
-    });
-
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), "bottom-right");
-    
-    // We don't need this as we're implementing our own location control
-    // map.current.addControl(
-    //   new mapboxgl.GeolocateControl({
-    //     positionOptions: {
-    //       enableHighAccuracy: true
-    //     },
-    //     trackUserLocation: true
-    //   }),
-    //   "bottom-right"
-    // );
-
-    // Add custom CSS for markers
-    const style = document.createElement('style');
-    style.textContent = `
-      .marker-active {
-        z-index: 10;
-        transform: scale(1.3);
-      }
-      .mapboxgl-popup {
-        z-index: 5;
-      }
-    `;
-    document.head.appendChild(style);
-
-    // When map loads
-    map.current.on("load", () => {
-      setLoading(false);
-      
-      // Add markers for businesses
-      const newMarkers = businesses.map(business => {
-        const popup = new mapboxgl.Popup({ closeButton: false, offset: 25 })
-          .setHTML(`<strong>${business.name}</strong><br>${business.address}`);
-            
-        const marker = new mapboxgl.Marker({ color: "#6366F1" })
-          .setLngLat(business.coordinates)
-          .setPopup(popup);
-          
-        marker.getElement().addEventListener('click', () => {
+  // Handle marker click
+  const handleMarkerClick = (businessId: string) => {
+    const business = businesses.find(b => b.id === businessId);
+    if (business) {
+      setActiveMarker(businessId);
           setSelectedBusiness(business);
           setSidebarOpen(true);
-          setShowReviewForm(false);
-          
-          // Reset previous active marker
-          markers.forEach(m => {
-            if (m !== marker) {
-              m.getElement().classList.remove('marker-active');
-            }
-          });
-          
-          // Set this marker as active
-          marker.getElement().classList.add('marker-active');
-          setActiveMarker(marker);
-        });
-        
-        marker.addTo(map.current!);
-        return marker;
-      });
-      
-      setMarkers(newMarkers);
-      
-      // If we have user location, add the user marker
-      if (userLocation) {
-        addUserLocationMarker(userLocation);
-      }
-    });
-
-    // Clean up on unmount
-    return () => {
-      markers.forEach(marker => marker.remove());
-      if (userMarker.current) userMarker.current.remove();
-      if (map.current) {
-        map.current.remove();
-        map.current = null;
-      }
-    };
-  }, [lng, lat, zoom, mapboxToken]);
-
-  // Update markers when businesses change
-  useEffect(() => {
-    if (!map.current) return;
-    
-    // Remove existing markers
-    markers.forEach(marker => marker.remove());
-    
-    // Add new markers
-    const newMarkers = businesses.map(business => {
-      const popup = new mapboxgl.Popup({ closeButton: false, offset: 25 })
-        .setHTML(`
-          <strong>${business.name}</strong>
-          <br>${business.address}
-          ${business.distance ? `<br><small>${business.distance.toFixed(1)} km away</small>` : ''}
-        `);
-          
-      const marker = new mapboxgl.Marker({ color: "#6366F1" })
-        .setLngLat(business.coordinates)
-        .setPopup(popup);
-        
-      marker.getElement().addEventListener('click', () => {
-        setSelectedBusiness(business);
-        setSidebarOpen(true);
-        setShowReviewForm(false);
-        
-        // Reset previous active marker
-        markers.forEach(m => {
-          if (m !== marker) {
-            m.getElement().classList.remove('marker-active');
-          }
-        });
-        
-        // Set this marker as active
-        marker.getElement().classList.add('marker-active');
-        setActiveMarker(marker);
-      });
-      
-      marker.addTo(map.current!);
-      return marker;
-    });
-    
-    setMarkers(newMarkers);
-    
-    // If we have search results but no specific business selected,
-    // adjust the map to show all markers
-    if (businesses.length > 0 && !selectedBusiness && map.current) {
-      if (businesses.length === 1) {
-        // If only one business, center on it
-        map.current.flyTo({
-          center: businesses[0].coordinates,
-          zoom: 15,
-          essential: true
-        });
-      } else {
-        // Fit map to show all markers
-        const bounds = new mapboxgl.LngLatBounds();
-        businesses.forEach(business => {
-          bounds.extend(business.coordinates);
-        });
-        
-        // If user location is available, include it in the bounds
-        if (userLocation) {
-          bounds.extend(userLocation);
-        }
-        
-        map.current.fitBounds(bounds, { 
-          padding: { top: 100, bottom: 100, left: sidebarOpen ? 400 : 100, right: 100 },
-          maxZoom: 15
-        });
-      }
     }
-  }, [businesses]);
+  };
 
-  // Update user marker when location changes
-  useEffect(() => {
-    if (userLocation && map.current) {
-      addUserLocationMarker(userLocation);
-    }
-  }, [userLocation]);
+  // Map load callback
+  const onMapLoad = useCallback((map) => {
+    setMap(map);
+    setLoading(false);
+  }, []);
 
   // Render the review form section
   const renderReviewForm = () => {
@@ -598,6 +416,24 @@ export function MapFullscreen() {
     );
   };
 
+  // Add this helper function near the top of your component
+  const getGoogleMapsAnimation = () => {
+    return window.google?.maps?.Animation?.BOUNCE || null;
+  };
+
+  if (loadError) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center p-4">
+          <p className="text-red-500 font-medium">Error loading Google Maps API</p>
+          <p className="text-sm text-muted-foreground mt-2">
+            Please check your API key and internet connection.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-full flex-col relative bg-background">
       {/* Top navigation bar - Updated with higher z-index */}
@@ -650,12 +486,12 @@ export function MapFullscreen() {
       {/* Sidebar */}
       <div 
         className={cn(
-          "absolute left-0 top-[57px] bottom-0 z-20 bg-background border-r transition-all duration-300 ease-in-out overflow-y-auto",
+          "absolute left-0 top-[57px] bottom-0 z-20 bg-background border-r transition-all duration-300 ease-in-out overflow-y-auto overflow-x-hidden",
           sidebarOpen ? "w-[360px] opacity-100" : "w-0 opacity-0"
         )}
       >
         {sidebarOpen && (
-          <div className="p-4">
+          <div className="p-4 w-full">
             {showReviewForm && selectedBusiness ? (
               renderReviewForm()
             ) : selectedBusiness ? (
@@ -664,14 +500,16 @@ export function MapFullscreen() {
                 onBack={handleBackToResults} 
               />
             ) : (
-              <div className="flex items-center justify-between mb-4">
-                <SearchResults 
-                  businesses={businesses} 
-                  onSelect={handleBusinessSelect}
-                  userLocation={userLocation}
-                  isLoading={isLoadingResults}
-                  error={searchError}
-                />
+              <div className="flex items-center justify-between mb-4 w-full">
+                <div className="w-full">
+                  <SearchResults 
+                    businesses={businesses} 
+                    onSelect={handleBusinessSelect}
+                    userLocation={userLocation ? [userLocation.lng, userLocation.lat] : null}
+                    isLoading={isLoadingResults}
+                    error={searchError}
+                  />
+                </div>
                 <Button 
                   variant="ghost" 
                   size="icon" 
@@ -687,29 +525,72 @@ export function MapFullscreen() {
       </div>
       
       {/* Map container */}
-      <div className="flex-1 w-full h-full absolute inset-0">
-        {loading && (
+      <div className="flex-1 w-full h-full absolute inset-0" style={{ marginTop: "57px" }}>
+        {!isLoaded ? (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
-        )}
-        
-        {!mapboxToken && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-            <div className="text-center p-4">
-              <p className="text-red-500 font-medium">Mapbox API token not found</p>
-              <p className="text-sm text-muted-foreground mt-2">
-                Please add your Mapbox token to the .env file as NEXT_PUBLIC_MAPBOX_TOKEN
-              </p>
+        ) : (
+          <GoogleMap
+            mapContainerStyle={mapContainerStyle}
+            center={center}
+            zoom={zoom}
+            options={mapOptions}
+            onLoad={onMapLoad}
+          >
+            {/* User location marker */}
+            {userLocation && (
+              <Marker
+                position={userLocation}
+                icon={{
+                  path: google.maps.SymbolPath.CIRCLE,
+                  scale: 8,
+                  fillColor: "#4F46E5",
+                  fillOpacity: 1,
+                  strokeColor: "#FFFFFF",
+                  strokeWeight: 2,
+                }}
+                title="Your Location"
+              />
+            )}
+
+            {/* Business markers */}
+            {businesses.map((business) => (
+              <Marker
+                key={business.id}
+                position={{
+                  lat: business.coordinates[1],
+                  lng: business.coordinates[0],
+                }}
+                onClick={() => handleMarkerClick(business.id)}
+                animation={activeMarker === business.id ? getGoogleMapsAnimation() : null}
+                icon={{
+                  path: google.maps.SymbolPath.MARKER,
+                  scale: 7,
+                  fillColor: "#6366F1",
+                  fillOpacity: 1,
+                  strokeColor: "#FFFFFF",
+                  strokeWeight: 2,
+                }}
+              >
+                {activeMarker === business.id && (
+                  <InfoWindow
+                    position={{
+                      lat: business.coordinates[1],
+                      lng: business.coordinates[0],
+                    }}
+                    onCloseClick={() => setActiveMarker(null)}
+                  >
+                    <div className="p-2 max-w-[200px]">
+                      <h3 className="font-medium text-sm">{business.name}</h3>
+                      <p className="text-xs text-gray-600">{business.address}</p>
             </div>
-          </div>
+                  </InfoWindow>
+                )}
+              </Marker>
+            ))}
+          </GoogleMap>
         )}
-        
-        <div 
-          ref={mapContainer} 
-          className="h-full w-full"
-          style={{ marginTop: "57px" }}
-        />
       </div>
     </div>
   );
