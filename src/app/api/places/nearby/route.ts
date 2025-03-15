@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   
   if (!apiKey) {
     return NextResponse.json(
-      { error: "Google Places API key is not configured" },
+      { error: "Google Places API key is not configured", status: "API_KEY_MISSING" },
       { status: 500 }
     );
   }
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   
   if (!lat || !lng) {
     return NextResponse.json(
-      { error: "Missing required parameters: lat and lng" },
+      { error: "Missing required parameters: lat and lng", status: "PARAMS_MISSING" },
       { status: 400 }
     );
   }
@@ -53,16 +53,32 @@ export async function GET(request: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Google Places API error: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`Google Places API responded with status: ${response.status} - ${errorText}`);
+      return NextResponse.json(
+        { 
+          error: `Google Places API responded with status: ${response.status}`, 
+          status: "REQUEST_DENIED",
+          message: errorText 
+        },
+        { status: 200 } // Return 200 so the client can gracefully handle it
+      );
     }
     
     const data = await response.json();
     console.log("Google API response status:", data.status);
     console.log("Number of results:", data.results?.length || 0);
     
+    // If there's an error with the API itself, still return a 200 
+    // so the client can gracefully handle it
     if (data.status !== "OK" && data.status !== "ZERO_RESULTS") {
-      console.error(`Google Places API error status: ${data.status}`, data.error_message);
-      throw new Error(`Google Places API error: ${data.status} - ${data.error_message || "Unknown error"}`);
+      console.error("Google Places API error:", data.status, data.error_message || "No error message");
+      return NextResponse.json(
+        { 
+          status: data.status, 
+          error: data.error_message || "Google Places API error",
+          results: []
+        },
+        { status: 200 }
+      );
     }
     
     // Return the response
@@ -70,8 +86,12 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("Error fetching nearby places:", error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch nearby places" },
-      { status: 500 }
+      { 
+        error: error.message || "Failed to fetch nearby places", 
+        status: "SERVER_ERROR",
+        results: []
+      },
+      { status: 200 } // Return 200 so the client can gracefully handle it
     );
   }
 } 

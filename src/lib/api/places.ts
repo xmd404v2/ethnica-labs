@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { sampleBusinesses, getMockBusinessesNearLocation, searchMockBusinesses } from '@/lib/sample-businesses';
 
 // Mock business data for fallback
 const mockBusinesses = [
@@ -90,7 +91,10 @@ export async function searchNearbyBusinesses(
   
   if (!apiKey) {
     toast.error("API key for business data is missing");
-    return [];
+    console.log("Using mock data instead of real API");
+    return query 
+      ? searchMockBusinesses(query, location)
+      : getMockBusinessesNearLocation(location[1], location[0], radius/1000);
   }
   
   try {
@@ -116,57 +120,23 @@ export async function searchNearbyBusinesses(
     
     const data = await response.json();
     
-    // Check if the API returned an error or empty results
-    if (data.status === "REQUEST_DENIED" || data.results.length === 0) {
-      console.warn("Google Places API request denied or returned no results. Using mock data as fallback.");
-      console.log("API Response:", data);
-      
-      // Use mock data as fallback, but with adjustments based on location
-      return mockBusinesses.map(business => {
-        // Adjust mock business coordinates to be relative to the requested location
-        const adjustedBusiness = {
-          ...business,
-          coordinates: [
-            location[0] + (Math.random() * 0.02 - 0.01), // Add random offset within ~1km
-            location[1] + (Math.random() * 0.02 - 0.01)
-          ],
-          distance: Math.random() * 2 + 0.2 // Random distance between 0.2 and 2.2 km
-        };
-        
-        // If there's a query, filter the mock data to simulate search
-        if (query && !business.name.toLowerCase().includes(query.toLowerCase()) && 
-            !business.category.toLowerCase().includes(query.toLowerCase())) {
-          return null;
-        }
-        
-        return adjustedBusiness;
-      }).filter(Boolean) as Business[];
+    // If the API returned an error, use mock data
+    if (data.status === "REQUEST_DENIED" || data.error) {
+      console.log("API error, using mock data:", data.error || data.status);
+      return query 
+        ? searchMockBusinesses(query, location)
+        : getMockBusinessesNearLocation(location[1], location[0], radius/1000);
     }
     
     return transformGooglePlacesData(data.results, [lng, lat]);
   } catch (error) {
     console.error("Error fetching nearby businesses:", error);
-    toast.error("Using sample data while API is being configured");
+    toast.error("Failed to load business data, using sample data");
     
-    // Return mock data as fallback
-    return mockBusinesses.map(business => {
-      // Adjust mock business coordinates to be relative to the requested location
-      return {
-        ...business,
-        coordinates: [
-          location[0] + (Math.random() * 0.02 - 0.01), // Add random offset within ~1km
-          location[1] + (Math.random() * 0.02 - 0.01)
-        ],
-        distance: Math.random() * 2 + 0.2 // Random distance between 0.2 and 2.2 km
-      };
-    }).filter(business => {
-      // If there's a query, filter the mock data to simulate search
-      if (query && !business.name.toLowerCase().includes(query.toLowerCase()) && 
-          !business.category.toLowerCase().includes(query.toLowerCase())) {
-        return false;
-      }
-      return true;
-    });
+    // Return mock data if the API call fails
+    return query 
+      ? searchMockBusinesses(query, location)
+      : getMockBusinessesNearLocation(location[1], location[0], radius/1000);
   }
 }
 
@@ -187,11 +157,22 @@ export async function getBusinessDetails(placeId: string): Promise<Business | nu
     }
     
     const data = await response.json();
+    
+    // If the API returned an error, find the business in our mock data
+    if (data.status === "REQUEST_DENIED" || data.error) {
+      console.log("API error, using mock data for details:", data.error || data.status);
+      const mockBusiness = sampleBusinesses.find(b => b.placeId === placeId || b.id === placeId);
+      return mockBusiness || null;
+    }
+    
     return transformGooglePlaceDetails(data.result);
   } catch (error) {
     console.error("Error fetching business details:", error);
-    toast.error("Failed to load business details");
-    return null;
+    toast.error("Failed to load business details, using sample data");
+    
+    // Try to find the business in our mock data
+    const mockBusiness = sampleBusinesses.find(b => b.placeId === placeId || b.id === placeId);
+    return mockBusiness || null;
   }
 }
 

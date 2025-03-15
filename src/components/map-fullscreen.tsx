@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
-import { Menu, X, Layers, Compass } from "lucide-react";
+import { Menu, X, Layers, Compass, Star, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { MapSearch } from "@/components/search/map-search";
@@ -13,13 +13,21 @@ import { AuthButton } from "@/components/auth/auth-button";
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from "sonner";
 import { searchNearbyBusinesses, getBusinessDetails, Business } from "@/lib/api/places";
-import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from '@react-google-maps/api';
+import { getMockBusinessesNearLocation, searchMockBusinesses } from "@/lib/sample-businesses";
+import { Map, Marker, Popup, NavigationControl } from 'react-map-gl/mapbox';
+import 'mapbox-gl/dist/mapbox-gl.css';
 
 // Storage keys
 const LOCATION_STORAGE_KEY = 'ethnica-user-location';
 const LOCATION_TIMESTAMP_KEY = 'ethnica-location-timestamp';
 // Expiration time for cached location (24 hours in milliseconds)
 const LOCATION_CACHE_EXPIRY = 24 * 60 * 60 * 1000;
+
+// Mapbox token from environment variable
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || '';
+
+// Use a monochrome base style for reduced cognitive load and better focus on important elements
+const mapStyle = "mapbox://styles/mapbox/navigation-night-v1";
 
 // Google Maps container style
 const mapContainerStyle = {
@@ -101,15 +109,11 @@ const mapOptions = {
 };
 
 export function MapFullscreen() {
-  // Load the Google Maps JavaScript API
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '',
-    libraries: ['places']
-  });
+  // Track API initialization error separately
+  const [apiInitialized, setApiInitialized] = useState(true); // Default to true for Mapbox
+  const [mapError, setMapError] = useState<string | null>(null);
 
   const [map, setMap] = useState(null);
-  const [infoWindow, setInfoWindow] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
@@ -119,6 +123,7 @@ export function MapFullscreen() {
   const [isLoadingResults, setIsLoadingResults] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [activeMarker, setActiveMarker] = useState<string | null>(null);
+  const [popupInfo, setPopupInfo] = useState<Business | null>(null);
 
   // User location state
   const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
@@ -127,6 +132,11 @@ export function MapFullscreen() {
   // Default map settings - will be overridden by user location if available
   const [center, setCenter] = useState({ lat: 40.7128, lng: -74.006 });
   const [zoom, setZoom] = useState(13);
+  const [viewState, setViewState] = useState({
+    longitude: -74.006,
+    latitude: 40.7128,
+    zoom: 13
+  });
 
   const { user, authenticated } = usePrivy();
 
@@ -171,6 +181,8 @@ export function MapFullscreen() {
   const requestLocationAccess = () => {
     if (!navigator.geolocation) {
       toast.error("Geolocation is not supported by your browser");
+      // Fall back to default location
+      filterBusinessesByLocation(center.lng, center.lat);
       return;
     }
 
@@ -198,19 +210,39 @@ export function MapFullscreen() {
         toast.success("Location accessed successfully!");
       },
       (error) => {
-        console.error("Error getting location:", error);
-        setLocationAccessDenied(true);
+        // Enhanced error handling with more specific messages
+        let errorMessage = "Unable to determine your location. Using default location.";
+        console.error(`Geolocation error (code ${error.code}):`, error.message || "No error details");
+        
+        switch(error.code) {
+          case 1: // PERMISSION_DENIED
+            errorMessage = "Location access denied. Please enable location services to see businesses near you.";
+            setLocationAccessDenied(true);
+            break;
+          case 2: // POSITION_UNAVAILABLE
+            errorMessage = "Unable to determine your location. Using a default location instead.";
+            // Not setting locationAccessDenied here as it's a temporary technical issue, not a permissions issue
+            break;
+          case 3: // TIMEOUT
+            errorMessage = "Location request timed out. Using default location.";
+            break;
+        }
+        
         setIsLocatingUser(false);
         
-        if (error.code === 1) {
-          toast.error("Location access denied. Please enable location services to see businesses near you.");
+        // Use toast.warning instead of toast.error for position unavailable
+        if (error.code === 2) {
+          toast.warning(errorMessage);
         } else {
-          toast.error("Unable to determine your location. Using default location.");
+          toast.error(errorMessage);
         }
+        
+        // Use sample data centered at the default location
+        filterBusinessesByLocation(center.lng, center.lat);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 15000, // Increased timeout to give more time
         maximumAge: 60000
       }
     );
@@ -222,10 +254,24 @@ export function MapFullscreen() {
     setSearchError(null);
     
     try {
-      // Make sure we're using the real API call here
-      const results = await searchNearbyBusinesses([longitude, latitude]);
-      console.log("API results:", results); // Add this for debugging
-      setBusinesses(results);
+      // For now, use mock data until Google Maps is properly set up
+      const results = getMockBusinessesNearLocation(latitude, longitude, 5);
+      console.log("Using mock data:", results.length, "businesses found");
+      
+      if (results.length === 0) {
+        // If no results, try with a wider radius
+        const widerResults = getMockBusinessesNearLocation(latitude, longitude, 10);
+        setBusinesses(widerResults);
+        
+        if (widerResults.length > 0) {
+          console.log("Found businesses with wider radius:", widerResults.length);
+        } else {
+          console.log("No businesses found even with wider radius");
+          setSearchError("No businesses found in this area. Try a different location.");
+        }
+      } else {
+        setBusinesses(results);
+      }
     } catch (error) {
       console.error("Error fetching nearby businesses:", error);
       setSearchError("Failed to load businesses near you.");
@@ -248,16 +294,14 @@ export function MapFullscreen() {
     setSearchError(null);
     
     try {
-      const results = await searchNearbyBusinesses(
-        [userLocation.lng, userLocation.lat],
-        query.trim() !== "" ? query : undefined
-      );
-      
+      // Use mock search function for now
+      const results = searchMockBusinesses(query, [userLocation.lng, userLocation.lat]);
+      console.log("Search results:", results.length, "businesses found for query:", query);
       setBusinesses(results);
-    
-    // Open sidebar with results
-    setSidebarOpen(true);
-    setSelectedBusiness(null);
+      
+      // Open sidebar with results
+      setSidebarOpen(true);
+      setSelectedBusiness(null);
       setShowReviewForm(false);
     } catch (error) {
       console.error("Search error:", error);
@@ -273,45 +317,73 @@ export function MapFullscreen() {
     requestLocationAccess();
   };
 
-  // Handle business selection
-  const handleBusinessSelect = async (business: Business) => {
-    setIsLoadingResults(true);
-    try {
-      // If we have a placeId, get the full details
-      if (business.placeId) {
-        const details = await getBusinessDetails(business.placeId);
-        if (details) {
-          setSelectedBusiness(details);
-        } else {
-          setSelectedBusiness(business);
-        }
-      } else {
-    setSelectedBusiness(business);
+  // Simplified map centering effect
+  useEffect(() => {
+    if (map) {
+      // Determine the center point based on what should be in focus
+      let newViewState = { ...viewState };
+      
+      if (selectedBusiness && selectedBusiness.coordinates) {
+        newViewState = { 
+          ...newViewState,
+          longitude: selectedBusiness.coordinates[0],
+          latitude: selectedBusiness.coordinates[1],
+          zoom: 16
+        };
+      } else if (userLocation) {
+        newViewState = {
+          ...newViewState,
+          longitude: userLocation.lng,
+          latitude: userLocation.lat,
+          zoom: 14
+        };
       }
       
-      setShowReviewForm(false);
+      // Update the view state
+      setViewState(newViewState);
+    }
+  }, [map, userLocation, selectedBusiness]);
+
+  // Map load callback
+  const onMapLoad = useCallback((evt) => {
+    setMap(evt.target);
+    setLoading(false);
+  }, []);
+
+  // Handle marker click
+  const handleMarkerClick = (businessId: string) => {
+    const business = businesses.find(b => b.id === businessId);
+    if (business) {
+      // Set active marker and popup info
+      setActiveMarker(businessId);
+      setPopupInfo(business);
       
-      // Center the map on the selected business
-      if (business.coordinates) {
-        setCenter({ 
-          lat: business.coordinates[1], 
-          lng: business.coordinates[0] 
-        });
-        setZoom(16);
-      }
-      
-      // Set the active marker
-      setActiveMarker(business.id);
-    } catch (error) {
-      console.error("Error getting business details:", error);
-      toast.error("Failed to load business details");
+      // Set selected business
       setSelectedBusiness(business);
-    } finally {
-      setIsLoadingResults(false);
+      
+      // Open sidebar if it's not already open
+      if (!sidebarOpen) {
+        setSidebarOpen(true);
+      }
+      
+      // Center map on business location
+      if (business.coordinates) {
+        setViewState({
+          longitude: business.coordinates[0],
+          latitude: business.coordinates[1],
+          zoom: 16
+        });
+      }
     }
   };
 
-  // Back to results
+  // Modify the toggleSidebar function to recenter the map when sidebar state changes
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+    // The center will be adjusted by the useEffect above
+  };
+
+  // Handle back to results
   const handleBackToResults = () => {
     setSelectedBusiness(null);
     setShowReviewForm(false);
@@ -329,26 +401,147 @@ export function MapFullscreen() {
     setShowReviewForm(!showReviewForm);
   };
 
-  // Toggle sidebar
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
+  // Add this helper function near the top of your component
+  const getGoogleMapsAnimation = () => {
+    return window.google?.maps?.Animation?.BOUNCE || null;
   };
 
-  // Handle marker click
-  const handleMarkerClick = (businessId: string) => {
-    const business = businesses.find(b => b.id === businessId);
-    if (business) {
-      setActiveMarker(businessId);
-          setSelectedBusiness(business);
-          setSidebarOpen(true);
+  // Add this helper function near the top of your component where other helper functions are defined
+  const renderStars = (rating: number) => {
+    return Array(5).fill(0).map((_, i) => (
+      <Star 
+        key={i} 
+        className={`h-3 w-3 ${i < rating ? "text-yellow-500 fill-yellow-500" : "text-muted-foreground"}`} 
+      />
+    ));
+  };
+
+  // Add this helper function near the formatDistance function if it exists, or add it
+  const formatDistance = (distance: number) => {
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)} m away`;
+    } else if (distance < 10) {
+      return `${distance.toFixed(1)} km away`;
+    } else {
+      return `${Math.round(distance)} km away`;
     }
   };
 
-  // Map load callback
-  const onMapLoad = useCallback((map) => {
-    setMap(map);
-    setLoading(false);
+  // Update the existing useEffect for CSS styles
+  useEffect(() => {
+    // Add custom CSS for styling
+    if (!document.getElementById('mapbox-custom-styles')) {
+      const style = document.createElement('style');
+      style.id = 'mapbox-custom-styles';
+      style.innerHTML = `
+        /* Prevent page scrolling and fix map container */
+        body, html {
+          overflow: hidden;
+          height: 100%;
+          width: 100%;
+          position: fixed;
+        }
+        #map-container {
+          height: calc(100vh - 57px) !important;
+          overflow: hidden !important;
+        }
+        
+        /* Enhanced Mapbox popup styling to match search results exactly */
+        .mapboxgl-popup {
+          z-index: 10; 
+        }
+        
+        .mapboxgl-popup-content {
+          background-color: var(--background);
+          color: var(--foreground);
+          border-radius: var(--radius);
+          box-shadow: var(--shadow);
+          padding: 0;
+          border: 1px solid var(--border);
+          overflow: hidden;
+          width: 320px;
+          max-width: 90vw;
+        }
+        
+        .mapboxgl-popup-close-button {
+          color: var(--foreground);
+          font-size: 16px;
+          padding: 8px;
+          background: transparent;
+          border: none;
+          z-index: 2;
+          position: absolute;
+          top: 0;
+          right: 0;
+          transition: color 0.2s ease;
+        }
+        
+        .mapboxgl-popup-close-button:hover {
+          background-color: transparent;
+          color: var(--primary);
+        }
+        
+        /* Override the default popup tip direction */
+        .mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip {
+          border-top-color: var(--border);
+          margin-bottom: -1px;
+        }
+        
+        .mapboxgl-popup-anchor-top .mapboxgl-popup-tip {
+          border-bottom-color: var(--border);
+          margin-top: -1px;
+        }
+      `;
+      document.head.appendChild(style);
+    }
   }, []);
+
+  // Function to check if an error occurred
+  const didErrorOccur = () => {
+    // We're using a simplified error check - just checking if we have a token
+    return !MAPBOX_TOKEN;
+  };
+
+  // Modify the handleBusinessSelect function to use our adjustment logic
+  const handleBusinessSelect = async (business: Business) => {
+    setIsLoadingResults(true);
+    try {
+      // Get full details if available
+      if (business.placeId) {
+        // Try to get details, fallback to the business object we already have
+        const details = await getBusinessDetails(business.placeId);
+        if (details) {
+          setSelectedBusiness(details);
+        } else {
+          setSelectedBusiness(business);
+        }
+      } else {
+        // If no placeId, just use the business directly
+        setSelectedBusiness(business);
+      }
+      
+      setShowReviewForm(false);
+      
+      // Center the map on the selected business
+      if (business.coordinates) {
+        setViewState({
+          longitude: business.coordinates[0],
+          latitude: business.coordinates[1],
+          zoom: 16
+        });
+      }
+      
+      // Set the active marker
+      setActiveMarker(business.id);
+      setPopupInfo(business);
+    } catch (error) {
+      console.error("Error getting business details:", error);
+      toast.error("Failed to load business details");
+      setSelectedBusiness(business);
+    } finally {
+      setIsLoadingResults(false);
+    }
+  };
 
   // Render the review form section
   const renderReviewForm = () => {
@@ -416,18 +609,13 @@ export function MapFullscreen() {
     );
   };
 
-  // Add this helper function near the top of your component
-  const getGoogleMapsAnimation = () => {
-    return window.google?.maps?.Animation?.BOUNCE || null;
-  };
-
-  if (loadError) {
+  if (didErrorOccur()) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center p-4">
-          <p className="text-red-500 font-medium">Error loading Google Maps API</p>
+          <p className="text-red-500 font-medium">Error loading map</p>
           <p className="text-sm text-muted-foreground mt-2">
-            Please check your API key and internet connection.
+            Please check your Mapbox access token configuration.
           </p>
         </div>
       </div>
@@ -435,7 +623,7 @@ export function MapFullscreen() {
   }
 
   return (
-    <div className="flex h-screen w-full flex-col relative bg-background">
+    <div className="flex h-screen w-full flex-col relative bg-background overflow-hidden">
       {/* Top navigation bar - Updated with higher z-index */}
       <div className="absolute top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm p-2 border-b flex items-center">
         <div className="flex items-center gap-2">
@@ -489,6 +677,7 @@ export function MapFullscreen() {
           "absolute left-0 top-[57px] bottom-0 z-20 bg-background border-r transition-all duration-300 ease-in-out overflow-y-auto overflow-x-hidden",
           sidebarOpen ? "w-[360px] opacity-100" : "w-0 opacity-0"
         )}
+        style={{ height: "calc(100vh - 57px)" }}
       >
         {sidebarOpen && (
           <div className="p-4 w-full">
@@ -525,71 +714,213 @@ export function MapFullscreen() {
       </div>
       
       {/* Map container */}
-      <div className="flex-1 w-full h-full absolute inset-0" style={{ marginTop: "57px" }}>
-        {!isLoaded ? (
+      <div 
+        id="map-container" 
+        className="flex-1 w-full h-full absolute inset-0 transition-all duration-300 ease-in-out" 
+        style={{ 
+          marginTop: "57px", 
+          height: "calc(100vh - 57px)"
+        }}
+      >
+        {loading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
-        ) : (
-          <GoogleMap
-            mapContainerStyle={mapContainerStyle}
-            center={center}
-            zoom={zoom}
-            options={mapOptions}
+        )}
+        
+        {mapError && (
+          <div className="absolute top-2 left-0 right-0 mx-auto w-fit z-50 bg-yellow-500/90 text-black px-4 py-2 rounded-md">
+            <p>{mapError}</p>
+          </div>
+        )}
+
+        {MAPBOX_TOKEN ? (
+          <Map
+            id="map"
+            {...viewState}
+            onMove={evt => setViewState(evt.viewState)}
+            style={{ width: '100%', height: '100%' }}
+            mapStyle={mapStyle}
+            mapboxAccessToken={MAPBOX_TOKEN}
             onLoad={onMapLoad}
+            onStyleLoad={(map) => {
+              if (map) {
+                // Create a subdued background that reduces eye strain
+                map.setPaintProperty('background', 'background-color', '#0f172a'); // Deep blue background reduces eye strain
+
+                // Water - using a calming blue that's visually distinct but not distracting
+                map.setPaintProperty('water', 'fill-color', '#193c5a');
+                
+                // Land and green areas - research shows nature elements improve cognitive processing
+                map.setPaintProperty('landuse-park', 'fill-color', '#1e3a29');
+                map.setPaintProperty('landuse-green', 'fill-color', '#1e3a29');
+
+                // Main roads - high contrast for key wayfinding elements
+                map.setPaintProperty('road-primary', 'line-color', '#334155');
+                
+                // Secondary roads - moderate contrast for visual hierarchy
+                map.setPaintProperty('road-secondary-tertiary', 'line-color', '#293548');
+                
+                // Building footprints - subtle but visible
+                map.setPaintProperty('building', 'fill-color', '#172033');
+                
+                // POI labels - minimized to reduce cognitive load
+                map.setLayoutProperty('poi-label', 'text-size', 10);
+                map.setPaintProperty('poi-label', 'text-color', '#94a3b8');
+                
+                // Administrative boundaries - subtle
+                map.setPaintProperty('admin-0-boundary', 'line-color', '#334155');
+                
+                // Transit lines - visible but not distracting
+                map.setPaintProperty('transit-layer', 'line-color', '#334155');
+              }
+            }}
           >
+            <NavigationControl position="bottom-right" />
+            
             {/* User location marker */}
             {userLocation && (
               <Marker
-                position={userLocation}
-                icon={{
-                  path: google.maps.SymbolPath.CIRCLE,
-                  scale: 8,
-                  fillColor: "#4F46E5",
-                  fillOpacity: 1,
-                  strokeColor: "#FFFFFF",
-                  strokeWeight: 2,
-                }}
-                title="Your Location"
-              />
+                latitude={userLocation.lat}
+                longitude={userLocation.lng}
+                anchor="center"
+              >
+                <div className="relative">
+                  <div className="absolute w-12 h-12 bg-blue-500/20 rounded-full animate-ping" />
+                  <div className="relative bg-blue-500 w-5 h-5 rounded-full border-2 border-white shadow-lg z-10" />
+                </div>
+              </Marker>
             )}
 
-            {/* Business markers */}
+            {/* Business markers optimized for visual scanning patterns */}
             {businesses.map((business) => (
               <Marker
                 key={business.id}
-                position={{
-                  lat: business.coordinates[1],
-                  lng: business.coordinates[0],
+                latitude={business.coordinates[1]}
+                longitude={business.coordinates[0]}
+                onClick={(e) => {
+                  e.originalEvent.stopPropagation();
+                  handleMarkerClick(business.id);
                 }}
-                onClick={() => handleMarkerClick(business.id)}
-                animation={activeMarker === business.id ? getGoogleMapsAnimation() : null}
-                icon={{
-                  path: google.maps.SymbolPath.MARKER,
-                  scale: 7,
-                  fillColor: "#6366F1",
-                  fillOpacity: 1,
-                  strokeColor: "#FFFFFF",
-                  strokeWeight: 2,
-                }}
+                anchor="bottom"
               >
-                {activeMarker === business.id && (
-                  <InfoWindow
-                    position={{
-                      lat: business.coordinates[1],
-                      lng: business.coordinates[0],
-                    }}
-                    onCloseClick={() => setActiveMarker(null)}
-                  >
-                    <div className="p-2 max-w-[200px]">
-                      <h3 className="font-medium text-sm">{business.name}</h3>
-                      <p className="text-xs text-gray-600">{business.address}</p>
-            </div>
-                  </InfoWindow>
-                )}
+                <div 
+                  className={`w-8 h-8 transform-gpu ${
+                    activeMarker === business.id 
+                      ? 'scale-110 bg-purple-600 shadow-lg shadow-purple-500/30' 
+                      : 'bg-rose-600 hover:scale-105 transition-transform'
+                  } rounded-full flex items-center justify-center text-white text-xs animate-in fade-in duration-300`}
+                >
+                  <MapPin className={`w-4 h-4 ${activeMarker === business.id ? 'text-white' : 'text-white'}`} />
+                </div>
               </Marker>
             ))}
-          </GoogleMap>
+            
+            {/* Popup for selected business - Styled exactly like search results */}
+            {popupInfo && (
+              <Popup
+                anchor="top"
+                longitude={popupInfo.coordinates[0]}
+                latitude={popupInfo.coordinates[1]}
+                onClose={() => setPopupInfo(null)}
+                closeButton={true}
+                closeOnClick={false}
+                offset={[0, 8]}
+              >
+                <div 
+                  className="p-3 hover:bg-accent transition-colors cursor-pointer"
+                  onClick={() => handleBusinessSelect(popupInfo)}
+                >
+                  <div className="flex gap-3">
+                    {popupInfo.photos && popupInfo.photos.length > 0 ? (
+                      <div className="w-16 h-16 rounded bg-secondary flex-shrink-0 overflow-hidden">
+                        <img 
+                          src={popupInfo.photos[0]} 
+                          alt={popupInfo.name} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://via.placeholder.com/64?text=No+Image";
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 rounded bg-secondary flex-shrink-0 flex items-center justify-center text-xs text-muted-foreground">
+                        No Image
+                      </div>
+                    )}
+                    
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <h3 className="font-medium text-sm mb-1 truncate">{popupInfo.name}</h3>
+                      
+                      {popupInfo.rating && (
+                        <div className="flex items-center gap-1 mb-1">
+                          <div className="flex">{renderStars(popupInfo.rating)}</div>
+                          <span className="text-xs text-muted-foreground whitespace-nowrap">
+                            {popupInfo.rating} {popupInfo.reviewCount && `(${popupInfo.reviewCount})`}
+                          </span>
+                        </div>
+                      )}
+                      
+                      <div className="text-xs text-muted-foreground mb-1 truncate">{popupInfo.category}</div>
+                      
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">{popupInfo.address}</span>
+                        {popupInfo.distance !== undefined && (
+                          <span className="whitespace-nowrap flex-shrink-0"> • {formatDistance(popupInfo.distance)}</span>
+                        )}
+                      </div>
+                      
+                      {popupInfo.attributes && popupInfo.attributes.length > 0 && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {(() => {
+                            // Find priority attributes if they exist
+                            const womanOwned = popupInfo.attributes.find(attr => 
+                              attr.toLowerCase().includes('woman') || attr.toLowerCase().includes('female'));
+                            const latinoOwned = popupInfo.attributes.find(attr => 
+                              attr.toLowerCase().includes('latino') || attr.toLowerCase().includes('hispanic'));
+                            const blackOwned = popupInfo.attributes.find(attr => 
+                              attr.toLowerCase().includes('black') || attr.toLowerCase().includes('african'));
+                            
+                            // Prioritize attributes in this order
+                            const primaryAttribute = womanOwned || latinoOwned || blackOwned || popupInfo.attributes[0];
+                            
+                            // Calculate remaining attributes count
+                            const remainingCount = popupInfo.attributes.length - 1;
+                            
+                            return (
+                              <>
+                                <span className="px-1.5 py-0.5 bg-secondary text-xs rounded truncate max-w-[150px]">
+                                  {primaryAttribute}
+                                </span>
+                                {remainingCount > 0 && (
+                                  <span className="px-1.5 py-0.5 bg-secondary text-xs rounded">
+                                    +{remainingCount} more
+                                  </span>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </Popup>
+            )}
+          </Map>
+        ) : (
+          <div className="absolute inset-0 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+            <div className="text-center p-8 max-w-md">
+              <h2 className="text-xl font-bold mb-4">Map Display Unavailable</h2>
+              <p className="mb-4">
+                Missing Mapbox access token. Please add NEXT_PUBLIC_MAPBOX_TOKEN to your environment variables.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                We're still displaying business results using sample data.
+              </p>
+            </div>
+          </div>
         )}
       </div>
     </div>
