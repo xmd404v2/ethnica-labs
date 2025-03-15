@@ -1,3 +1,5 @@
+[![Netlify Status](https://api.netlify.com/api/v1/badges/b6e60398-7921-49a7-bb0d-e70304031e21/deploy-status)](https://app.netlify.com/sites/ethnica-labs/deploys)
+
 # Ethnica - Support Your Tribe & Grow Local Economies
 
 Ethnica is a web application that helps users discover and support businesses that align with their values and demographics. The platform allows users to find businesses on a map, read reviews from people with similar backgrounds, and search for establishments based on their preferences.
