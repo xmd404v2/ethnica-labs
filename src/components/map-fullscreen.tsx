@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { Menu, X, Layers, Compass, Star, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
@@ -12,10 +12,13 @@ import { ChevronLeft } from "lucide-react";
 import { AuthButton } from "@/components/auth/auth-button";
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from "sonner";
-import { searchNearbyBusinesses, getBusinessDetails, Business } from "@/lib/api/places";
+import { Business } from "@/lib/api/places";
 import { getMockBusinessesNearLocation, searchMockBusinesses } from "@/lib/sample-businesses";
 import { Map, Marker, Popup, NavigationControl } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
+import { searchMapboxBusinesses, searchNearbyBusinessesWithMapbox, getBusinessDetailsWithMapbox } from "@/lib/api/mapbox-places";
+import { AppContext } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 // Storage keys
 const LOCATION_STORAGE_KEY = 'ethnica-user-location';
@@ -254,19 +257,20 @@ export function MapFullscreen() {
     setSearchError(null);
     
     try {
-      // For now, use mock data until Google Maps is properly set up
-      const results = getMockBusinessesNearLocation(latitude, longitude, 5);
-      console.log("Using mock data:", results.length, "businesses found");
+      // Use the Mapbox Places API instead of mock data
+      const results = await searchNearbyBusinessesWithMapbox([longitude, latitude]);
+      console.log("Using Mapbox data:", results.length, "businesses found");
       
       if (results.length === 0) {
-        // If no results, try with a wider radius
-        const widerResults = getMockBusinessesNearLocation(latitude, longitude, 10);
-        setBusinesses(widerResults);
+        // If no results, try with mock data as fallback
+        console.log("No results from Mapbox, falling back to mock data");
+        const mockResults = getMockBusinessesNearLocation(latitude, longitude, 10);
+        setBusinesses(mockResults);
         
-        if (widerResults.length > 0) {
-          console.log("Found businesses with wider radius:", widerResults.length);
+        if (mockResults.length > 0) {
+          console.log("Found businesses with mock data:", mockResults.length);
         } else {
-          console.log("No businesses found even with wider radius");
+          console.log("No businesses found with mock data either");
           setSearchError("No businesses found in this area. Try a different location.");
         }
       } else {
@@ -274,8 +278,17 @@ export function MapFullscreen() {
       }
     } catch (error) {
       console.error("Error fetching nearby businesses:", error);
-      setSearchError("Failed to load businesses near you.");
-      toast.error("Failed to load businesses");
+      
+      // Fall back to mock data if Mapbox API fails
+      console.log("Falling back to mock data due to API error");
+      const mockResults = getMockBusinessesNearLocation(latitude, longitude, 5);
+      setBusinesses(mockResults);
+      
+      // Only show error if both Mapbox and mock data fail
+      if (mockResults.length === 0) {
+        setSearchError("Failed to load businesses near you.");
+        toast.error("Failed to load businesses");
+      }
     } finally {
       setIsLoadingResults(false);
     }
@@ -294,10 +307,18 @@ export function MapFullscreen() {
     setSearchError(null);
     
     try {
-      // Use mock search function for now
-      const results = searchMockBusinesses(query, [userLocation.lng, userLocation.lat]);
+      // Use Mapbox Places API for search
+      const results = await searchMapboxBusinesses(query, [userLocation.lng, userLocation.lat]);
       console.log("Search results:", results.length, "businesses found for query:", query);
-      setBusinesses(results);
+      
+      if (results.length === 0) {
+        // Fall back to mock data if no results
+        console.log("No results from Mapbox, falling back to mock search");
+        const mockResults = searchMockBusinesses(query, [userLocation.lng, userLocation.lat]);
+        setBusinesses(mockResults);
+      } else {
+        setBusinesses(results);
+      }
       
       // Open sidebar with results
       setSidebarOpen(true);
@@ -305,8 +326,15 @@ export function MapFullscreen() {
       setShowReviewForm(false);
     } catch (error) {
       console.error("Search error:", error);
-      setSearchError("Failed to load businesses. Please try again later.");
-      toast.error("Failed to load businesses");
+      
+      // Fall back to mock search
+      try {
+        const mockResults = searchMockBusinesses(query, [userLocation.lng, userLocation.lat]);
+        setBusinesses(mockResults);
+      } catch (mockError) {
+        setSearchError("Failed to load businesses. Please try again later.");
+        toast.error("Failed to load businesses");
+      }
     } finally {
       setIsLoadingResults(false);
     }
@@ -502,17 +530,18 @@ export function MapFullscreen() {
     return !MAPBOX_TOKEN;
   };
 
-  // Modify the handleBusinessSelect function to use our adjustment logic
+  // Modify the handleBusinessSelect function to use only Mapbox and mock data
   const handleBusinessSelect = async (business: Business) => {
     setIsLoadingResults(true);
     try {
       // Get full details if available
       if (business.placeId) {
-        // Try to get details, fallback to the business object we already have
-        const details = await getBusinessDetails(business.placeId);
-        if (details) {
-          setSelectedBusiness(details);
+        // Try to get details from Mapbox
+        const mapboxDetails = await getBusinessDetailsWithMapbox(business.placeId);
+        if (mapboxDetails) {
+          setSelectedBusiness(mapboxDetails);
         } else {
+          // If Mapbox fails, just use the business directly
           setSelectedBusiness(business);
         }
       } else {

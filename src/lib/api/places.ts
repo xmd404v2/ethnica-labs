@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { sampleBusinesses, getMockBusinessesNearLocation, searchMockBusinesses } from '@/lib/sample-businesses';
+import { searchNearbyBusinessesWithMapbox, getBusinessDetailsWithMapbox } from './mapbox-places';
 
 // Mock business data for fallback
 const mockBusinesses = [
@@ -51,11 +52,12 @@ const mockBusinesses = [
 
 export interface Business {
   id: string;
+  placeId?: string;
   name: string;
   category: string;
   description?: string;
   address: string;
-  coordinates: [number, number];
+  coordinates: [number, number]; // [longitude, latitude]
   rating?: number;
   reviewCount?: number;
   phone?: string;
@@ -64,8 +66,6 @@ export interface Business {
   photos?: string[];
   distance?: number;
   reviews?: BusinessReview[];
-  // Additional fields from API
-  placeId?: string;
   openNow?: boolean;
   priceLevel?: number;
 }
@@ -81,54 +81,16 @@ export interface BusinessReview {
 
 /**
  * Search for businesses near the specified location
+ * This function now redirects to the Mapbox implementation
  */
 export async function searchNearbyBusinesses(
   location: [number, number],
   query?: string,
   radius: number = 5000
 ): Promise<Business[]> {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY;
-  
-  if (!apiKey) {
-    toast.error("API key for business data is missing");
-    console.log("Using mock data instead of real API");
-    return query 
-      ? searchMockBusinesses(query, location)
-      : getMockBusinessesNearLocation(location[1], location[0], radius/1000);
-  }
-  
   try {
-    const proxyUrl = "/api/places/nearby"; // We'll create this Next.js API route
-    const lat = location[1];
-    const lng = location[0];
-    
-    const params = new URLSearchParams({
-      lat: lat.toString(),
-      lng: lng.toString(),
-      radius: radius.toString(),
-    });
-    
-    if (query) {
-      params.append("keyword", query);
-    }
-    
-    const response = await fetch(`${proxyUrl}?${params.toString()}`);
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching places: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    // If the API returned an error, use mock data
-    if (data.status === "REQUEST_DENIED" || data.error) {
-      console.log("API error, using mock data:", data.error || data.status);
-      return query 
-        ? searchMockBusinesses(query, location)
-        : getMockBusinessesNearLocation(location[1], location[0], radius/1000);
-    }
-    
-    return transformGooglePlacesData(data.results, [lng, lat]);
+    // Redirect to Mapbox implementation
+    return await searchNearbyBusinessesWithMapbox(location, query, radius);
   } catch (error) {
     console.error("Error fetching nearby businesses:", error);
     toast.error("Failed to load business data, using sample data");
@@ -142,30 +104,12 @@ export async function searchNearbyBusinesses(
 
 /**
  * Get detailed information about a business by its place ID
+ * This function now redirects to the Mapbox implementation
  */
 export async function getBusinessDetails(placeId: string): Promise<Business | null> {
   try {
-    const proxyUrl = "/api/places/details";
-    const params = new URLSearchParams({
-      place_id: placeId
-    });
-    
-    const response = await fetch(`${proxyUrl}?${params.toString()}`);
-    
-    if (!response.ok) {
-      throw new Error(`Error fetching place details: ${response.statusText}`);
-    }
-    
-    const data = await response.json();
-    
-    // If the API returned an error, find the business in our mock data
-    if (data.status === "REQUEST_DENIED" || data.error) {
-      console.log("API error, using mock data for details:", data.error || data.status);
-      const mockBusiness = sampleBusinesses.find(b => b.placeId === placeId || b.id === placeId);
-      return mockBusiness || null;
-    }
-    
-    return transformGooglePlaceDetails(data.result);
+    // Redirect to Mapbox implementation
+    return await getBusinessDetailsWithMapbox(placeId);
   } catch (error) {
     console.error("Error fetching business details:", error);
     toast.error("Failed to load business details, using sample data");
@@ -174,201 +118,6 @@ export async function getBusinessDetails(placeId: string): Promise<Business | nu
     const mockBusiness = sampleBusinesses.find(b => b.placeId === placeId || b.id === placeId);
     return mockBusiness || null;
   }
-}
-
-/**
- * Transform Google Places API data into our Business model
- */
-function transformGooglePlacesData(places: any[], userLocation: [number, number]): Business[] {
-  return places.map(place => {
-    // Extract business category
-    let category = "Business";
-    if (place.types && place.types.length > 0) {
-      // Convert Google place types to more human-readable format
-      const typeMap: Record<string, string> = {
-        "restaurant": "Restaurant",
-        "cafe": "Café",
-        "bar": "Bar",
-        "food": "Food",
-        "grocery_or_supermarket": "Grocery",
-        "store": "Retail",
-        "shopping_mall": "Shopping",
-        "clothing_store": "Clothing",
-        "beauty_salon": "Beauty",
-        "book_store": "Bookstore",
-        "bakery": "Bakery",
-        "convenience_store": "Convenience Store",
-        "department_store": "Department Store",
-        "electronics_store": "Electronics",
-        "furniture_store": "Furniture",
-        "hardware_store": "Hardware Store",
-        "home_goods_store": "Home Goods",
-        "jewelry_store": "Jewelry",
-        "liquor_store": "Liquor Store",
-        "shoe_store": "Shoe Store",
-        "supermarket": "Supermarket",
-      };
-      
-      for (const type of place.types) {
-        if (typeMap[type]) {
-          category = typeMap[type];
-          break;
-        }
-      }
-    }
-    
-    // Calculate distance if user location is available
-    let distance: number | undefined = undefined;
-    if (userLocation) {
-      const lat1 = userLocation[1];
-      const lon1 = userLocation[0];
-      const lat2 = place.geometry.location.lat;
-      const lon2 = place.geometry.location.lng;
-      
-      distance = getDistanceBetweenCoordinates(lat1, lon1, lat2, lon2);
-    }
-    
-    // Extract photos if available
-    const photos = place.photos?.map((photo: any) => {
-      return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY}`;
-    }) || [];
-    
-    // Transform to our Business model
-    return {
-      id: place.place_id,
-      placeId: place.place_id,
-      name: place.name,
-      category,
-      address: place.vicinity,
-      coordinates: [
-        place.geometry.location.lng,
-        place.geometry.location.lat
-      ],
-      rating: place.rating,
-      reviewCount: place.user_ratings_total,
-      openNow: place.opening_hours?.open_now,
-      priceLevel: place.price_level,
-      photos,
-      distance,
-      // We'll generate some placeholder attributes based on Google data
-      // These would be replaced by actual data in a production app
-      attributes: generatePlaceholderAttributes(place),
-      reviews: [] // Will be populated in detail view
-    };
-  });
-}
-
-/**
- * Transform Google Place Details into our Business model
- */
-function transformGooglePlaceDetails(place: any): Business | null {
-  if (!place) return null;
-  
-  // Extract business category
-  let category = "Business";
-  if (place.types && place.types.length > 0) {
-    // Similar to the function above
-    // ... (same code as in transformGooglePlacesData)
-  }
-  
-  // Extract reviews
-  const reviews: BusinessReview[] = place.reviews?.map((review: any) => {
-    return {
-      id: review.time.toString(),
-      rating: review.rating,
-      text: review.text,
-      author: review.author_name,
-      time: review.time
-    };
-  }) || [];
-  
-  // Extract photos
-  const photos = place.photos?.map((photo: any) => {
-    return `https://maps.googleapis.com/maps/api/place/photo?maxwidth=400&photoreference=${photo.photo_reference}&key=${process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY}`;
-  }) || [];
-  
-  return {
-    id: place.place_id,
-    placeId: place.place_id,
-    name: place.name,
-    category,
-    description: place.editorial_summary?.overview || "",
-    address: place.formatted_address || place.vicinity,
-    coordinates: [
-      place.geometry.location.lng,
-      place.geometry.location.lat
-    ],
-    rating: place.rating,
-    reviewCount: place.user_ratings_total,
-    phone: place.formatted_phone_number,
-    website: place.website,
-    openNow: place.opening_hours?.open_now,
-    priceLevel: place.price_level,
-    photos,
-    attributes: generatePlaceholderAttributes(place),
-    reviews
-  };
-}
-
-/**
- * Generate placeholder attributes based on Google data
- * In a real app, you'd have actual data about minority ownership, etc.
- */
-function generatePlaceholderAttributes(place: any): string[] {
-  const attributes: string[] = [];
-  
-  // Generate some sample attributes based on place data
-  if (place.price_level === 1) {
-    attributes.push("Budget Friendly");
-  }
-  
-  if (place.price_level >= 3) {
-    attributes.push("Premium");
-  }
-  
-  // Based on ratings
-  if (place.rating >= 4.5) {
-    attributes.push("Highly Rated");
-  }
-  
-  // Based on types/categories
-  if (place.types) {
-    if (place.types.includes("restaurant")) {
-      // Randomly assign some restaurant-specific attributes
-      const restaurantAttrs = [
-        "Family Owned", "Woman Owned", "Minority Owned", 
-        "Sustainable", "Vegan Options", "Locally Sourced"
-      ];
-      
-      // Add 1-2 random attributes
-      const numAttrs = Math.floor(Math.random() * 2) + 1;
-      for (let i = 0; i < numAttrs; i++) {
-        const idx = Math.floor(Math.random() * restaurantAttrs.length);
-        if (!attributes.includes(restaurantAttrs[idx])) {
-          attributes.push(restaurantAttrs[idx]);
-        }
-      }
-    }
-    
-    if (place.types.includes("store") || place.types.includes("shopping")) {
-      // Randomly assign some store-specific attributes
-      const storeAttrs = [
-        "Locally Owned", "Woman Owned", "Black Owned", 
-        "Latino Owned", "Asian Owned", "LGBTQ+ Owned"
-      ];
-      
-      // Add 1-2 random attributes
-      const numAttrs = Math.floor(Math.random() * 2) + 1;
-      for (let i = 0; i < numAttrs; i++) {
-        const idx = Math.floor(Math.random() * storeAttrs.length);
-        if (!attributes.includes(storeAttrs[idx])) {
-          attributes.push(storeAttrs[idx]);
-        }
-      }
-    }
-  }
-  
-  return attributes;
 }
 
 /**

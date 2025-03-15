@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching place details:", error);
     return NextResponse.json(
       { 
-        error: error.message || "Failed to fetch place details", 
+        error: error instanceof Error ? error.message : "Failed to fetch place details", 
         status: "SERVER_ERROR",
         result: null
       },

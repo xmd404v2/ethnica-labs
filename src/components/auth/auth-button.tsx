@@ -31,7 +31,7 @@ export function AuthButton() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon" className="rounded-full">
           <Avatar className="h-8 w-8">
-            <AvatarImage src={user?.avatarUrl || ''} alt={user?.displayName || 'User'} />
+            <AvatarImage src={(user as any)?.avatarUrl || ''} alt={(user as any)?.displayName || 'User'} />
             <AvatarFallback>
               <User className="h-4 w-4" />
             </AvatarFallback>

@@ -127,16 +127,34 @@ export function SearchResults({
                   
                   {business.attributes && business.attributes.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1">
-                      {business.attributes.slice(0, 2).map((attr, i) => (
-                        <span key={i} className="px-1.5 py-0.5 bg-secondary text-xs rounded truncate max-w-[100px]">
-                          {attr}
-                        </span>
-                      ))}
-                      {business.attributes.length > 2 && (
-                        <span className="px-1.5 py-0.5 bg-secondary text-xs rounded">
-                          +{business.attributes.length - 2}
-                        </span>
-                      )}
+                      {(() => {
+                        // Find priority attributes if they exist
+                        const womanOwned = business.attributes.find(attr => 
+                          attr.toLowerCase().includes('woman') || attr.toLowerCase().includes('female'));
+                        const latinoOwned = business.attributes.find(attr => 
+                          attr.toLowerCase().includes('latino') || attr.toLowerCase().includes('hispanic'));
+                        const blackOwned = business.attributes.find(attr => 
+                          attr.toLowerCase().includes('black') || attr.toLowerCase().includes('african'));
+                        
+                        // Prioritize attributes in this order
+                        const primaryAttribute = womanOwned || latinoOwned || blackOwned || business.attributes[0];
+                        
+                        // Calculate remaining attributes count
+                        const remainingCount = business.attributes.length - 1;
+                        
+                        return (
+                          <>
+                            <span className="px-1.5 py-0.5 bg-secondary text-xs rounded truncate max-w-[150px]">
+                              {primaryAttribute}
+                            </span>
+                            {remainingCount > 0 && (
+                              <span className="px-1.5 py-0.5 bg-secondary text-xs rounded">
+                                +{remainingCount} more
+                              </span>
+                            )}
+                          </>
+                        );
+                      })()}
                     </div>
                   )}
                 </div>

@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching nearby places:", error);
     return NextResponse.json(
       { 
-        error: error.message || "Failed to fetch nearby places", 
+        error: error instanceof Error ? error.message : "Failed to fetch nearby places", 
         status: "SERVER_ERROR",
         results: []
       },
