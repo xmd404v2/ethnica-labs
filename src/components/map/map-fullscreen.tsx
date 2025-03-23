@@ -66,6 +66,7 @@ export function MapFullscreen() {
   const [businesses, setBusinesses] = useState(mockBusinesses);
   const [markers, setMarkers] = useState<mapboxgl.Marker[]>([]);
   const [activeMarker, setActiveMarker] = useState<mapboxgl.Marker | null>(null);
+  const [showReviewForm, setShowReviewForm] = useState(false);
 
   // Default map settings
   const [lng] = useState(-74.006);
@@ -102,7 +103,7 @@ export function MapFullscreen() {
     // Fly to the business location
     if (map.current) {
       map.current.flyTo({
-        center: business.coordinates,
+        center: business.coordinates as [number, number],
         zoom: 16,
         essential: true
       });
@@ -132,7 +133,8 @@ export function MapFullscreen() {
     if (activeMarker) {
       const el = activeMarker.getElement();
       el.classList.remove('marker-active');
-      if (activeMarker.getPopup().isOpen()) {
+      const popup = activeMarker.getPopup();
+      if (popup && popup.isOpen()) {
         activeMarker.togglePopup();
       }
     }
@@ -150,6 +152,11 @@ export function MapFullscreen() {
   // Toggle sidebar
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
+  };
+
+  // Toggle review form
+  const handleToggleReviewForm = () => {
+    setShowReviewForm(!showReviewForm);
   };
 
   // Initialize map
@@ -199,7 +206,7 @@ export function MapFullscreen() {
           .setHTML(`<strong>${business.name}</strong><br>${business.address}`);
             
         const marker = new mapboxgl.Marker({ color: "#6366F1" })
-          .setLngLat(business.coordinates)
+          .setLngLat(business.coordinates as [number, number])
           .setPopup(popup);
           
         marker.getElement().addEventListener('click', () => {
@@ -248,7 +255,7 @@ export function MapFullscreen() {
         .setHTML(`<strong>${business.name}</strong><br>${business.address}`);
           
       const marker = new mapboxgl.Marker({ color: "#6366F1" })
-        .setLngLat(business.coordinates)
+        .setLngLat(business.coordinates as [number, number])
         .setPopup(popup);
         
       marker.getElement().addEventListener('click', () => {
@@ -279,7 +286,7 @@ export function MapFullscreen() {
       if (businesses.length === 1) {
         // If only one business, center on it
         map.current.flyTo({
-          center: businesses[0].coordinates,
+          center: businesses[0].coordinates as [number, number],
           zoom: 15,
           essential: true
         });
@@ -287,7 +294,7 @@ export function MapFullscreen() {
         // Fit map to show all markers
         const bounds = new mapboxgl.LngLatBounds();
         businesses.forEach(business => {
-          bounds.extend(business.coordinates);
+          bounds.extend(business.coordinates as [number, number]);
         });
         
         map.current.fitBounds(bounds, { 
@@ -345,6 +352,7 @@ export function MapFullscreen() {
               <BusinessDetails 
                 business={selectedBusiness} 
                 onBack={handleBackToResults} 
+                onWriteReview={handleToggleReviewForm}
               />
             ) : (
               <div className="flex items-center justify-between mb-4">

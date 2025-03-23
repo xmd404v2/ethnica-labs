@@ -235,7 +235,12 @@ export function getMockBusinessesNearLocation(lat: number, lng: number, radius: 
   });
   
   // Return the dynamically generated businesses, sorted by distance
-  return dynamicBusinesses.sort((a, b) => a.distance - b.distance);
+  return dynamicBusinesses.sort((a, b) => {
+    // Handle undefined distance values
+    const distanceA = a.distance ?? Infinity;
+    const distanceB = b.distance ?? Infinity;
+    return distanceA - distanceB;
+  });
 }
 
 // Helper to calculate distance between coordinates
@@ -262,16 +267,16 @@ export function searchMockBusinesses(keyword: string, location: [number, number]
   
   const searchTerm = keyword.toLowerCase();
   
-  // Filter the nearby businesses by the search term
-  const results = nearbyBusinesses.filter(business => 
+  // Filter businesses by keyword match
+  const filtered = nearbyBusinesses.filter(business => 
     business.name.toLowerCase().includes(searchTerm) ||
     business.category.toLowerCase().includes(searchTerm) ||
-    business.description.toLowerCase().includes(searchTerm) ||
+    (business.description?.toLowerCase().includes(searchTerm) || false) ||
     business.attributes.some(attr => attr.toLowerCase().includes(searchTerm))
   );
   
   // If no results found with the existing businesses, create some that match the search term
-  if (results.length === 0) {
+  if (filtered.length === 0) {
     // Find a matching category if possible
     const matchingCategory = categories.find(cat => cat.toLowerCase().includes(searchTerm));
     
@@ -325,5 +330,5 @@ export function searchMockBusinesses(keyword: string, location: [number, number]
     }
   }
   
-  return results;
+  return filtered;
 } 

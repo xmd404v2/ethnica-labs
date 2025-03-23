@@ -57,6 +57,46 @@ Ethnica is a web application that helps users discover and support businesses th
 
 6. Open [http://localhost:3000](http://localhost:3000) in your browser
 
+## Deployment to Vercel
+
+To deploy the application to Vercel:
+
+1. Push your code to a GitHub repository
+
+2. Visit [Vercel](https://vercel.com) and sign up or log in
+
+3. Click "Add New..." and select "Project"
+
+4. Import your GitHub repository
+
+5. Configure the project:
+   - Framework Preset: Next.js
+   - Root Directory: ./
+   - Build Command: next build
+   - Output Directory: .next
+
+6. Set up environment variables in the Vercel dashboard:
+   - `NEXT_PUBLIC_MAPBOX_TOKEN`: Your Mapbox API token
+   - `NEXT_PUBLIC_PRIVY_APP_ID`: Your Privy App ID
+   - `DATABASE_URL`: Your production database connection string
+   - `NEXTAUTH_SECRET`: A secure random string for NextAuth
+   - `NEXTAUTH_URL`: Your deployed application URL
+
+7. Click "Deploy" and wait for the build to complete
+
+You can also use the Vercel CLI for more advanced deployment options:
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Login to Vercel
+vercel login
+
+# Deploy to production
+vercel --prod
+```
+
 ## Project Structure
 
 - `/app` - Next.js app router pages and layouts

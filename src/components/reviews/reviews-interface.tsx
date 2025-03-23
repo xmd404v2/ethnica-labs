@@ -111,189 +111,189 @@ export function ReviewsInterface() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <Tabs defaultValue="all" className="w-[400px]" onValueChange={setActiveTab}>
-          <TabsList>
-            <TabsTrigger value="all">All Reviews</TabsTrigger>
-            <TabsTrigger value="my">My Reviews</TabsTrigger>
-            <TabsTrigger value="similar">Similar to Me</TabsTrigger>
-          </TabsList>
-        </Tabs>
-        
-        <div className="flex gap-2">
-          <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
-            <PopoverTrigger asChild>
-              <Button variant="outline">
-                <Filter className="h-4 w-4 mr-2" />
-                Filters
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80">
-              <div className="space-y-4">
-                <h3 className="font-medium">Filter Reviews</h3>
-                
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Business Category</h4>
-                  <Select defaultValue="all">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="restaurant">Restaurants</SelectItem>
-                      <SelectItem value="retail">Retail</SelectItem>
-                      <SelectItem value="services">Services</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Rating</h4>
-                  <Select defaultValue="all">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select rating" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Ratings</SelectItem>
-                      <SelectItem value="5">5 Stars</SelectItem>
-                      <SelectItem value="4">4+ Stars</SelectItem>
-                      <SelectItem value="3">3+ Stars</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Demographic Similarity</h4>
-                  <Select defaultValue="all">
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select similarity" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Reviews</SelectItem>
-                      <SelectItem value="high">High Similarity</SelectItem>
-                      <SelectItem value="medium">Medium Similarity</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="flex justify-between">
-                  <Button variant="outline" size="sm" onClick={() => setFiltersOpen(false)}>
-                    Cancel
+        <Tabs defaultValue="all" className="w-full" onValueChange={setActiveTab}>
+          <div className="flex justify-between items-center w-full mb-6">
+            <TabsList>
+              <TabsTrigger value="all">All Reviews</TabsTrigger>
+              <TabsTrigger value="my">My Reviews</TabsTrigger>
+              <TabsTrigger value="similar">Similar to Me</TabsTrigger>
+            </TabsList>
+            
+            <div className="flex gap-2">
+              <Popover open={filtersOpen} onOpenChange={setFiltersOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Filters
                   </Button>
-                  <Button size="sm" onClick={() => setFiltersOpen(false)}>
-                    Apply Filters
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-          
-          <Button>
-            Write a Review
-          </Button>
-        </div>
-      </div>
-
-      {/* Reviews List */}
-      <div className="space-y-4">
-        <TabsContent value="all" className="mt-0">
-          {reviews.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No reviews found.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {reviews.map((review) => (
-                <Card key={review.id} className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-semibold">{review.businessName}</h3>
-                        <div className="flex items-center gap-1 mt-1">
-                          {renderStars(review.rating)}
-                        </div>
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {review.date}
-                      </div>
+                </PopoverTrigger>
+                <PopoverContent className="w-80">
+                  <div className="space-y-4">
+                    <h3 className="font-medium">Filter Reviews</h3>
+                    
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Business Category</h4>
+                      <Select defaultValue="all">
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Categories</SelectItem>
+                          <SelectItem value="restaurant">Restaurants</SelectItem>
+                          <SelectItem value="retail">Retail</SelectItem>
+                          <SelectItem value="services">Services</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     
-                    <p className="text-sm">{review.content}</p>
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Rating</h4>
+                      <Select defaultValue="all">
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select rating" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Ratings</SelectItem>
+                          <SelectItem value="5">5 Stars</SelectItem>
+                          <SelectItem value="4">4+ Stars</SelectItem>
+                          <SelectItem value="3">3+ Stars</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <User className="h-4 w-4" />
-                        <span>{review.userName}</span>
-                        {review.userDemographics && (
-                          <span className="text-xs">({review.userDemographics})</span>
-                        )}
-                      </div>
-                      
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="gap-1"
-                        onClick={() => toggleHelpful(review.id)}
-                      >
-                        <ThumbsUp className={`h-4 w-4 ${review.userHelpful ? "fill-primary" : ""}`} />
-                        <span>{review.helpfulCount}</span>
+                    <div>
+                      <h4 className="text-sm font-medium mb-2">Demographic Similarity</h4>
+                      <Select defaultValue="all">
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select similarity" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Reviews</SelectItem>
+                          <SelectItem value="high">High Similarity</SelectItem>
+                          <SelectItem value="medium">Medium Similarity</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="flex justify-between">
+                      <Button variant="outline" size="sm" onClick={() => setFiltersOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button size="sm" onClick={() => setFiltersOpen(false)}>
+                        Apply Filters
                       </Button>
                     </div>
                   </div>
-                </Card>
-              ))}
+                </PopoverContent>
+              </Popover>
+              
+              <Button>
+                Write a Review
+              </Button>
             </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="my" className="mt-0">
-          {userReviews.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">You haven't written any reviews yet.</p>
-              <Button className="mt-4">Write Your First Review</Button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 gap-4">
-              {userReviews.map((review) => (
-                <Card key={review.id} className="p-4">
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-semibold">{review.businessName}</h3>
-                        <div className="flex items-center gap-1 mt-1">
-                          {renderStars(review.rating)}
+          </div>
+
+          {/* Reviews List */}
+          <TabsContent value="all">
+            {reviews.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No reviews found.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {reviews.map((review) => (
+                  <Card key={review.id} className="p-4">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold">{review.businessName}</h3>
+                          <div className="flex items-center gap-1 mt-1">
+                            {renderStars(review.rating)}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm">Edit</Button>
-                        <div className="text-sm text-muted-foreground self-center">
+                        <div className="text-sm text-muted-foreground">
                           {review.date}
                         </div>
                       </div>
-                    </div>
-                    
-                    <p className="text-sm">{review.content}</p>
-                    
-                    <div className="flex justify-end items-center">
-                      <div className="text-sm text-muted-foreground">
-                        <ThumbsUp className="h-4 w-4 inline mr-1" />
-                        {review.helpfulCount} people found this helpful
+                      
+                      <p className="text-sm">{review.content}</p>
+                      
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <User className="h-4 w-4" />
+                          <span>{review.userName}</span>
+                          {review.userDemographics && (
+                            <span className="text-xs">({review.userDemographics})</span>
+                          )}
+                        </div>
+                        
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="gap-1"
+                          onClick={() => toggleHelpful(review.id)}
+                        >
+                          <ThumbsUp className={`h-4 w-4 ${review.userHelpful ? "fill-primary" : ""}`} />
+                          <span>{review.helpfulCount}</span>
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="my">
+            {userReviews.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">You haven't written any reviews yet.</p>
+                <Button className="mt-4">Write Your First Review</Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {userReviews.map((review) => (
+                  <Card key={review.id} className="p-4">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold">{review.businessName}</h3>
+                          <div className="flex items-center gap-1 mt-1">
+                            {renderStars(review.rating)}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm">Edit</Button>
+                          <div className="text-sm text-muted-foreground self-center">
+                            {review.date}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <p className="text-sm">{review.content}</p>
+                      
+                      <div className="flex justify-end items-center">
+                        <div className="text-sm text-muted-foreground">
+                          <ThumbsUp className="h-4 w-4 inline mr-1" />
+                          {review.helpfulCount} people found this helpful
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+          
+          <TabsContent value="similar">
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                Sign in to see reviews from people with similar demographics and preferences.
+              </p>
+              <Button className="mt-4">Sign In</Button>
             </div>
-          )}
-        </TabsContent>
-        
-        <TabsContent value="similar" className="mt-0">
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">
-              Sign in to see reviews from people with similar demographics and preferences.
-            </p>
-            <Button className="mt-4">Sign In</Button>
-          </div>
-        </TabsContent>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );

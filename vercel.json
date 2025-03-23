@@ -1,0 +1,10 @@
+{
+  "buildCommand": "next build",
+  "devCommand": "next dev",
+  "framework": "nextjs",
+  "installCommand": "npm install",
+  "env": {
+    "NEXT_PUBLIC_MAPBOX_TOKEN": "pk.eyJ1IjoieG1kNDA0IiwiYSI6ImNraG56cjZwbDA1aXEyc3FxejRtamVjNDEifQ.hXVEFnKEbrhLX5-a1ioXYw",
+    "NEXT_PUBLIC_PRIVY_APP_ID": "cm897m30x001jsux63sprgaau"
+  }
+}

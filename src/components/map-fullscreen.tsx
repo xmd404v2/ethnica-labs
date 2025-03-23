@@ -17,8 +17,6 @@ import { getMockBusinessesNearLocation, searchMockBusinesses } from "@/lib/sampl
 import { Map, Marker, Popup, NavigationControl } from 'react-map-gl/mapbox';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { searchMapboxBusinesses, searchNearbyBusinessesWithMapbox, getBusinessDetailsWithMapbox } from "@/lib/api/mapbox-places";
-import { AppContext } from '@/contexts/AppContext';
-import { useAuth } from '@/contexts/AuthContext';
 
 // Storage keys
 const LOCATION_STORAGE_KEY = 'ethnica-user-location';
@@ -373,9 +371,42 @@ export function MapFullscreen() {
   }, [map, userLocation, selectedBusiness]);
 
   // Map load callback
-  const onMapLoad = useCallback((evt) => {
-    setMap(evt.target);
+  const onMapLoad = useCallback((evt: { target: any }) => {
+    const map = evt.target;
+    setMap(map);
     setLoading(false);
+    
+    // Apply style customizations
+    if (map) {
+      // Create a subdued background that reduces eye strain
+      map.setPaintProperty('background', 'background-color', '#0f172a'); // Deep blue background reduces eye strain
+
+      // Water - using a calming blue that's visually distinct but not distracting
+      map.setPaintProperty('water', 'fill-color', '#193c5a');
+      
+      // Land and green areas - research shows nature elements improve cognitive processing
+      map.setPaintProperty('landuse-park', 'fill-color', '#1e3a29');
+      map.setPaintProperty('landuse-green', 'fill-color', '#1e3a29');
+
+      // Main roads - high contrast for key wayfinding elements
+      map.setPaintProperty('road-primary', 'line-color', '#334155');
+      
+      // Secondary roads - moderate contrast for visual hierarchy
+      map.setPaintProperty('road-secondary-tertiary', 'line-color', '#293548');
+      
+      // Building footprints - subtle but visible
+      map.setPaintProperty('building', 'fill-color', '#172033');
+      
+      // POI labels - minimized to reduce cognitive load
+      map.setLayoutProperty('poi-label', 'text-size', 10);
+      map.setPaintProperty('poi-label', 'text-color', '#94a3b8');
+      
+      // Administrative boundaries - subtle
+      map.setPaintProperty('admin-0-boundary', 'line-color', '#334155');
+      
+      // Transit lines - visible but not distracting
+      map.setPaintProperty('transit-layer', 'line-color', '#334155');
+    }
   }, []);
 
   // Handle marker click
@@ -574,65 +605,70 @@ export function MapFullscreen() {
 
   // Render the review form section
   const renderReviewForm = () => {
+    if (!showReviewForm || !selectedBusiness) return null;
+    
     return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setShowReviewForm(false)}
-            className="flex items-center gap-1"
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Back to business
-          </Button>
-        </div>
-        
-        <div>
-          <h2 className="text-lg font-medium mb-4">Write a Review for {selectedBusiness.name}</h2>
-          <form className="space-y-4" onSubmit={(e) => {
-            e.preventDefault();
-            // Handle form submission
-            console.log('Review submitted');
-            setShowReviewForm(false);
-          }}>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Rating</label>
-              <div className="flex gap-1">
-                {Array(5).fill(0).map((_, i) => (
-                  <button 
-                    key={i} 
-                    type="button"
-                    className="text-2xl text-muted-foreground hover:text-yellow-500"
-                  >
-                    ★
-                  </button>
-                ))}
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-background p-6 rounded-lg shadow-lg w-full max-w-md">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-medium">Write a Review for {selectedBusiness?.name}</h2>
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => setShowReviewForm(false)}
+              className="flex items-center gap-1"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Back to business
+            </Button>
+          </div>
+          
+          <div>
+            <h2 className="text-lg font-medium mb-4">Write a Review for {selectedBusiness.name}</h2>
+            <form className="space-y-4" onSubmit={(e) => {
+              e.preventDefault();
+              // Handle form submission
+              console.log('Review submitted');
+              setShowReviewForm(false);
+            }}>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Rating</label>
+                <div className="flex gap-1">
+                  {Array(5).fill(0).map((_, i) => (
+                    <button 
+                      key={i} 
+                      type="button"
+                      className="text-2xl text-muted-foreground hover:text-yellow-500"
+                    >
+                      ★
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Your Review</label>
-              <textarea 
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background" 
-                rows={5}
-                placeholder="Share your experience with this business..."
-                required
-              />
-            </div>
-            
-            {/* Show user info from Privy */}
-            {authenticated && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span>Posting as: {user?.displayName || user?.email?.address}</span>
+              
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Your Review</label>
+                <textarea 
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background" 
+                  rows={5}
+                  placeholder="Share your experience with this business..."
+                  required
+                />
               </div>
-            )}
-            
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowReviewForm(false)}>Cancel</Button>
-              <Button type="submit">Submit Review</Button>
-            </div>
-          </form>
+              
+              {/* Show user info from Privy */}
+              {authenticated && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span>Posting as: {(user as any)?.displayName || (user as any)?.email?.address}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowReviewForm(false)}>Cancel</Button>
+                <Button type="submit">Submit Review</Button>
+              </div>
+            </form>
+          </div>
         </div>
       </div>
     );
@@ -716,6 +752,7 @@ export function MapFullscreen() {
               <BusinessDetails 
                 business={selectedBusiness} 
                 onBack={handleBackToResults} 
+                onWriteReview={handleToggleReviewForm}
               />
             ) : (
               <div className="flex items-center justify-between mb-4 w-full">
@@ -767,43 +804,11 @@ export function MapFullscreen() {
           <Map
             id="map"
             {...viewState}
-            onMove={evt => setViewState(evt.viewState)}
+            onMove={(evt) => setViewState(evt.viewState)}
             style={{ width: '100%', height: '100%' }}
             mapStyle={mapStyle}
             mapboxAccessToken={MAPBOX_TOKEN}
             onLoad={onMapLoad}
-            onStyleLoad={(map) => {
-              if (map) {
-                // Create a subdued background that reduces eye strain
-                map.setPaintProperty('background', 'background-color', '#0f172a'); // Deep blue background reduces eye strain
-
-                // Water - using a calming blue that's visually distinct but not distracting
-                map.setPaintProperty('water', 'fill-color', '#193c5a');
-                
-                // Land and green areas - research shows nature elements improve cognitive processing
-                map.setPaintProperty('landuse-park', 'fill-color', '#1e3a29');
-                map.setPaintProperty('landuse-green', 'fill-color', '#1e3a29');
-
-                // Main roads - high contrast for key wayfinding elements
-                map.setPaintProperty('road-primary', 'line-color', '#334155');
-                
-                // Secondary roads - moderate contrast for visual hierarchy
-                map.setPaintProperty('road-secondary-tertiary', 'line-color', '#293548');
-                
-                // Building footprints - subtle but visible
-                map.setPaintProperty('building', 'fill-color', '#172033');
-                
-                // POI labels - minimized to reduce cognitive load
-                map.setLayoutProperty('poi-label', 'text-size', 10);
-                map.setPaintProperty('poi-label', 'text-color', '#94a3b8');
-                
-                // Administrative boundaries - subtle
-                map.setPaintProperty('admin-0-boundary', 'line-color', '#334155');
-                
-                // Transit lines - visible but not distracting
-                map.setPaintProperty('transit-layer', 'line-color', '#334155');
-              }
-            }}
           >
             <NavigationControl position="bottom-right" />
             

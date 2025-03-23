@@ -40,7 +40,7 @@ export function AuthButton() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>
-          {user?.displayName || user?.email?.address || 'My Account'}
+          {(user as any)?.displayName || (user as any)?.email?.address || 'My Account'}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem>Profile</DropdownMenuItem>

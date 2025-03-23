@@ -129,11 +129,11 @@ export function SearchResults({
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {(() => {
                         // Find priority attributes if they exist
-                        const womanOwned = business.attributes.find(attr => 
+                        const womanOwned = business.attributes.find((attr: string) => 
                           attr.toLowerCase().includes('woman') || attr.toLowerCase().includes('female'));
-                        const latinoOwned = business.attributes.find(attr => 
+                        const latinoOwned = business.attributes.find((attr: string) => 
                           attr.toLowerCase().includes('latino') || attr.toLowerCase().includes('hispanic'));
-                        const blackOwned = business.attributes.find(attr => 
+                        const blackOwned = business.attributes.find((attr: string) => 
                           attr.toLowerCase().includes('black') || attr.toLowerCase().includes('african'));
                         
                         // Prioritize attributes in this order
