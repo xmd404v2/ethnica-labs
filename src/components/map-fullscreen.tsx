@@ -116,7 +116,7 @@ export function MapFullscreen() {
 
   const [map, setMap] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [showReviewForm, setShowReviewForm] = useState(false);
@@ -166,7 +166,7 @@ export function MapFullscreen() {
             // Cached location expired, request fresh location
             requestLocationAccess();
           }
-        } else {
+    } else {
           // No cached location, request fresh location
           requestLocationAccess();
         }
@@ -255,24 +255,22 @@ export function MapFullscreen() {
     setSearchError(null);
     
     try {
-      // Use the Mapbox Places API instead of mock data
+      // Use Mapbox to get businesses around location
       const results = await searchNearbyBusinessesWithMapbox([longitude, latitude]);
-      console.log("Using Mapbox data:", results.length, "businesses found");
+      console.log("Nearby results:", results.length, "businesses found near coordinates:", longitude, latitude);
       
-      if (results.length === 0) {
-        // If no results, try with mock data as fallback
-        console.log("No results from Mapbox, falling back to mock data");
-        const mockResults = getMockBusinessesNearLocation(latitude, longitude, 10);
+      if (results.length > 0) {
+        setBusinesses(results);
+        setSidebarOpen(true);  // Open sidebar when businesses are found
+      } else {
+        // Fall back to mock data if Mapbox API fails
+        console.log("Falling back to mock data due to API error");
+        const mockResults = getMockBusinessesNearLocation(latitude, longitude, 5);
         setBusinesses(mockResults);
         
         if (mockResults.length > 0) {
-          console.log("Found businesses with mock data:", mockResults.length);
-        } else {
-          console.log("No businesses found with mock data either");
-          setSearchError("No businesses found in this area. Try a different location.");
+          setSidebarOpen(true);  // Open sidebar when mock businesses are found
         }
-      } else {
-        setBusinesses(results);
       }
     } catch (error) {
       console.error("Error fetching nearby businesses:", error);
@@ -319,7 +317,7 @@ export function MapFullscreen() {
       }
       
       // Open sidebar with results
-      setSidebarOpen(true);
+      setSidebarOpen(true);  // Always open sidebar when search is performed
       setSelectedBusiness(null);
       setShowReviewForm(false);
     } catch (error) {
@@ -374,7 +372,7 @@ export function MapFullscreen() {
   const onMapLoad = useCallback((evt: { target: any }) => {
     const map = evt.target;
     setMap(map);
-    setLoading(false);
+      setLoading(false);
     
     // Apply style customizations
     if (map) {
@@ -418,11 +416,11 @@ export function MapFullscreen() {
       setPopupInfo(business);
       
       // Set selected business
-      setSelectedBusiness(business);
+          setSelectedBusiness(business);
       
       // Open sidebar if it's not already open
       if (!sidebarOpen) {
-        setSidebarOpen(true);
+          setSidebarOpen(true);
       }
       
       // Center map on business location
@@ -500,9 +498,32 @@ export function MapFullscreen() {
           width: 100%;
           position: fixed;
         }
+        
+        /* Set search bar height variable */
+        :root {
+          --search-bar-height: 0px;
+        }
+        
+        @media (min-width: 768px) {
+          :root {
+            --search-bar-height: 56px;
+          }
+        }
+        
         #map-container {
-          height: calc(100vh - 57px) !important;
+          height: calc(100vh - 57px - var(--search-bar-height)) !important;
           overflow: hidden !important;
+        }
+        
+        /* Add bottom padding for mobile footer */
+        @media (max-width: 768px) {
+          .mapboxgl-ctrl-bottom-right {
+            bottom: 70px !important;
+          }
+          
+          .mapboxgl-popup-anchor-bottom .mapboxgl-popup-tip {
+            margin-bottom: -1px;
+          }
         }
         
         /* Enhanced Mapbox popup styling to match search results exactly */
@@ -690,23 +711,20 @@ export function MapFullscreen() {
   return (
     <div className="flex h-screen w-full flex-col relative bg-background overflow-hidden">
       {/* Top navigation bar - Updated with higher z-index */}
-      <div className="absolute top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm p-2 border-b flex items-center">
+      <div className="absolute top-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm p-2 border-b flex items-center justify-between">
+        {/* Left: Menu + Ethnica logo */}
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={toggleSidebar} className="mr-1">
             <Menu className="h-5 w-5" />
             <span className="sr-only">Toggle sidebar</span>
           </Button>
           
-          <span className="font-bold text-lg hidden sm:block">
+          <span className="font-bold text-lg">
             Ethnica
           </span>
         </div>
         
-        {/* Search bar */}
-        <div className="flex-1 max-w-2xl mx-4">
-          <MapSearch onSearch={handleSearch} />
-        </div>
-        
+        {/* Center: Location + Theme toggle */}
         <div className="flex items-center gap-2">
           {/* Location button */}
           <Button 
@@ -728,11 +746,25 @@ export function MapFullscreen() {
           </Button>
           
           <ThemeToggle />
-          <Button variant="ghost" size="icon" className="hidden md:flex">
-            <Layers className="h-5 w-5" />
-            <span className="sr-only">Map layers</span>
-          </Button>
+        </div>
+        
+        {/* Right: Auth button */}
+        <div className="flex items-center">
           <AuthButton />
+        </div>
+      </div>
+      
+      {/* Desktop search bar - visible only on desktop */}
+      <div className="hidden md:block absolute top-[57px] left-0 right-0 z-40 bg-background/90 backdrop-blur-sm px-4 py-2 border-b">
+        <div className="max-w-2xl mx-auto">
+          <MapSearch onSearch={handleSearch} />
+        </div>
+      </div>
+      
+      {/* Mobile sticky footer with search bar only - no location button */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm p-3 border-t flex items-center shadow-lg">
+        <div className="flex-1">
+          <MapSearch onSearch={handleSearch} />
         </div>
       </div>
       
@@ -757,13 +789,13 @@ export function MapFullscreen() {
             ) : (
               <div className="flex items-center justify-between mb-4 w-full">
                 <div className="w-full">
-                  <SearchResults 
-                    businesses={businesses} 
-                    onSelect={handleBusinessSelect}
+                <SearchResults 
+                  businesses={businesses} 
+                  onSelect={handleBusinessSelect} 
                     userLocation={userLocation ? [userLocation.lng, userLocation.lat] : null}
                     isLoading={isLoadingResults}
                     error={searchError}
-                  />
+                />
                 </div>
                 <Button 
                   variant="ghost" 
@@ -779,13 +811,15 @@ export function MapFullscreen() {
         )}
       </div>
       
-      {/* Map container */}
+      {/* Map container - adjusted for both mobile footer and desktop search bar */}
       <div 
         id="map-container" 
         className="flex-1 w-full h-full absolute inset-0 transition-all duration-300 ease-in-out" 
         style={{ 
-          marginTop: "57px", 
-          height: "calc(100vh - 57px)"
+          marginTop: "calc(57px + var(--search-bar-height, 0px))", 
+          height: "calc(100vh - 57px - var(--search-bar-height, 0px))",
+          marginBottom: "0",
+          paddingBottom: "calc(env(safe-area-inset-bottom) + 64px)" /* Mobile footer height */
         }}
       >
         {loading && (
