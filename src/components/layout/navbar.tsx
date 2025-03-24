@@ -14,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { MapSearch } from "@/components/search/map-search";
 
 interface NavLink {
   path: string;
@@ -43,18 +44,30 @@ export function Navbar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
+  const handleSearch = (query: string) => {
+    // Handle search in navbar - redirect to map with query
+    window.location.href = `/map?q=${encodeURIComponent(query)}`;
+  };
+
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur">
       <div className="container flex h-16 items-center justify-between">
-        {/* Logo */}
-        <Link 
-          href="/" 
-          className="flex items-center space-x-2 font-bold text-xl"
-        >
-          <span className="hidden sm:inline-block text-xl md:text-2xl">Ethnica</span>
-        </Link>
+        <div className="flex items-center gap-4">
+          {/* Logo */}
+          <Link 
+            href="/" 
+            className="flex items-center space-x-2 font-bold text-xl"
+          >
+            <span className="hidden sm:inline-block text-xl md:text-2xl">Ethnica</span>
+          </Link>
+          
+          {/* Search bar directly next to Ethnica */}
+          <div className="hidden md:block w-72">
+            <MapSearch onSearch={handleSearch} />
+          </div>
+        </div>
 
-        {/* Desktop Navigation */}
+        {/* Center: Navigation links */}
         <nav className="hidden md:flex gap-6 items-center">
           {navLinks.map((link) => (
             <Link
@@ -72,8 +85,8 @@ export function Navbar() {
           ))}
         </nav>
 
-        {/* Auth and Theme Buttons */}
-        <div className="flex items-center gap-2">
+        {/* Right: Auth and Theme Buttons */}
+        <div className="flex items-center gap-2 ml-auto">
           <ThemeToggle />
           <Link href="/signin">
             <Button variant="outline" size="sm" className="hidden md:flex items-center">

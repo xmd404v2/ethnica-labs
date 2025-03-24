@@ -695,6 +695,36 @@ export function MapFullscreen() {
     );
   };
 
+  // Add CSS variables for heights on mount
+  useEffect(() => {
+    // Add styles for the mapboxgl popup and prevent page scrolling
+    const style = document.createElement('style');
+    style.innerHTML = `
+      body {
+        overflow: hidden;
+      }
+      
+      /* Map container height variables */
+      :root {
+        --navbar-height: 57px;
+        --mobile-footer-height: 64px;
+      }
+      
+      /* Set custom styles for the map popups */
+      .mapboxgl-popup {
+        max-width: 300px !important;
+        font-family: inherit;
+      }
+      
+      // ... existing popup styles ...
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   if (didErrorOccur()) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -755,12 +785,10 @@ export function MapFullscreen() {
       </div>
       
       {/* Desktop search bar - visible only on desktop */}
-      <div className="hidden md:block absolute top-[57px] left-0 right-0 z-40 bg-background/90 backdrop-blur-sm px-4 py-2 border-b">
-        <div className="max-w-2xl mx-auto">
-          <MapSearch onSearch={handleSearch} />
-        </div>
+      <div className="hidden">
+        {/* Search bar moved to navbar */}
       </div>
-      
+        
       {/* Mobile sticky footer with search bar only - no location button */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/90 backdrop-blur-sm p-3 border-t flex items-center shadow-lg">
         <div className="flex-1">
@@ -811,30 +839,35 @@ export function MapFullscreen() {
         )}
       </div>
       
-      {/* Map container - adjusted for both mobile footer and desktop search bar */}
+      {/* Map container - adjusted for navbar and mobile footer */}
       <div 
-        id="map-container" 
-        className="flex-1 w-full h-full absolute inset-0 transition-all duration-300 ease-in-out" 
+        className={cn(
+          "fixed inset-0 w-full", 
+          sidebarOpen && "md:ml-[360px] md:w-[calc(100%-360px)]"
+        )}
         style={{ 
-          marginTop: "calc(57px + var(--search-bar-height, 0px))", 
-          height: "calc(100vh - 57px - var(--search-bar-height, 0px))",
-          marginBottom: "0",
-          paddingBottom: "calc(env(safe-area-inset-bottom) + 64px)" /* Mobile footer height */
+          height: "calc(100vh - var(--navbar-height))", 
+          top: "var(--navbar-height)",
+          marginBottom: "var(--mobile-footer-height)"
         }}
       >
-        {loading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        {!apiInitialized ? (
+          <div className="flex items-center justify-center h-full bg-background border rounded-md m-4">
+            <div className="text-center p-4">
+              <h3 className="text-lg font-semibold mb-2">Error loading map</h3>
+              <p className="text-muted-foreground mb-4">
+                Please check your Mapbox access token configuration in .env.local
+              </p>
+            </div>
           </div>
-        )}
-        
-        {mapError && (
-          <div className="absolute top-2 left-0 right-0 mx-auto w-fit z-50 bg-yellow-500/90 text-black px-4 py-2 rounded-md">
-            <p>{mapError}</p>
+        ) : mapError ? (
+          <div className="flex items-center justify-center h-full bg-background border rounded-md m-4">
+            <div className="text-center p-4">
+              <h3 className="text-lg font-semibold mb-2">Map Error</h3>
+              <p className="text-muted-foreground mb-4">{mapError}</p>
+            </div>
           </div>
-        )}
-
-        {MAPBOX_TOKEN ? (
+        ) : (
           <Map
             id="map"
             {...viewState}
@@ -977,18 +1010,6 @@ export function MapFullscreen() {
               </Popup>
             )}
           </Map>
-        ) : (
-          <div className="absolute inset-0 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-            <div className="text-center p-8 max-w-md">
-              <h2 className="text-xl font-bold mb-4">Map Display Unavailable</h2>
-              <p className="mb-4">
-                Missing Mapbox access token. Please add NEXT_PUBLIC_MAPBOX_TOKEN to your environment variables.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                We're still displaying business results using sample data.
-              </p>
-            </div>
-          </div>
         )}
       </div>
     </div>
